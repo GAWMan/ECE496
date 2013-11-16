@@ -1,0 +1,17 @@
+function[correlation, covariance]=correlationinput(simoutv1)
+count = 1; 
+    for i = 1:14
+       for j = 1:14-i
+          x = simoutv1(:,i+1);
+          y = simoutv1(:,i+1+j);
+          sigma = covarianceofchannels(x,y);
+
+          var_x = var(x);
+          var_y = var(y);
+            
+          covariance(2,count) = sigma;
+          correlation(2,count) = sigma / (var_x*var_y);
+          count = count+1;
+       end
+    end
+end
