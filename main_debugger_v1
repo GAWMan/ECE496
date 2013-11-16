@@ -1,0 +1,349 @@
+%% Params
+clear all
+% [hdr, record] = edfread('Ryan -Blink x 3-31.10.13.17.57.19.edf');
+% [hdr, record] = edfread('Ryan-eyebrow raise x3-31.10.13.18.45.10.edf');
+% [hdr, record] = edfread('Ryan-Eyes open-closed-open-31.10.13.18.03.32.edf');
+% [hdr, record] = edfread('Ryan-Left Bicep relaxed-clenched-relaxed-31.10.13.18.13.14.edf');
+% [hdr, record] = edfread('Ryan-left hand clench x3-31.10.13.18.50.00.edf');
+% [hdr, record] = edfread('Ryan-left jaw clench x3-31.10.13.18.20.15.edf');
+% [hdr, record] = edfread('Ryan-lift left arm x3-31.10.13.18.05.22.edf');
+% [hdr, record] = edfread('Ryan-lift right arm x3-31.10.13.18.06.18.edf');
+% [hdr, record] = edfread('Ryan-Right Bicep relaxed-clenched-relaxed-31.10.13.18.11.41.edf');
+% [hdr, record] = edfread('Ryan-right hand clench x3-31.10.13.18.49.21.edf');
+% [hdr, record] = edfread('Ryan-right jaw clench x3-31.10.13.18.21.10.edf');
+
+% new data
+
+% [hdr, record] = edfread('Ryan-blink x 5 -num1-16.11.13.14.34.31.edf');
+[hdr, record] = edfread('Ryan-Blink x 5 num2-16.11.13.14.35.06.edf');
+% [hdr, record] = edfread('Ryan-blink x 5 num3-16.11.13.14.35.43.edf');
+% [hdr, record] = edfread('Ryan-blink x 5 num4-16.11.13.14.36.33.edf');
+% [hdr, record] = edfread('Ryan-blink x 5 num5-16.11.13.14.37.10.edf');
+
+count = 0;
+SAMPLES = 128;%length(record);
+CHANNELS = 14;
+BANDS = 8;
+n = 1:1:SAMPLES;
+m = 1:1:CHANNELS;
+
+
+
+%% big mother loop
+
+while((SAMPLES*(count+1)) <= length(record))
+LOOP_NUM = count+1;
+
+%% Init Variables
+
+sample = record(3:16,(SAMPLES*count)+1:(SAMPLES*(count+1)))';
+
+%% Transforms and Filters
+for q = 1:CHANNELS
+    for j = 1:SAMPLES 
+        min_sample(q) = min(sample(:,q));
+        zeroed_sample(j,q) = sample(j,q) - min_sample(q);
+    end
+end
+
+for j = 1:CHANNELS
+    cwt_data(:,:,j) = cwt(sample(:,j), 1:64, 'sym8');
+    F(:,j) = fft(sample(:,j));
+    F(1:floor((SAMPLES/5)),j) = 0;
+    filt_sample(:,j) = ifft(F(:,j));
+    [dwt_data(:,j),L(:,j)] = wavedec(sample(:,j),BANDS,'sym8');
+end
+
+for j = 1:CHANNELS
+    DCELL(:,j) = detcoef(dwt_data(:,j), L(:,j), [1:BANDS]);
+end
+
+
+for j = 1:BANDS
+    ratio(j) = length(DCELL{1,1}) / length(DCELL{j,1});
+end
+
+for q = 1:CHANNELS
+    for j = 1:BANDS
+        for i = 1:length(DCELL{1,1});
+            D(j,i,q) = DCELL{j,q}(  min (length(DCELL{j,1}),(ceil(i/ratio(j)))));
+        end
+    end
+end
+
+% to get a double out of a cell use DCELL{i,j}
+
+%% analysis - checking for blink w/ correlation - live stream input sample
+
+% variables that come from outside this function:
+% SAMPLES
+% filt_sample
+% LOOP_NUM
+
+% variables to come out of the function
+% blink_out (either 1 or 0)
+
+% no splitting into segments, only one segment
+% 
+SEGMENT_SIZE = SAMPLES;
+
+%how many channels are used in the 1st analysys
+ANALYSIS_1_CHANNELS = 6;
+
+%zero out some cool things
+k = 0;
+sum_mean(LOOP_NUM) = 0;
+sum_power(LOOP_NUM) = 0;
+sum_max(LOOP_NUM) = 0;
+var_sum(LOOP_NUM) = 0;
+var_filt_sum(LOOP_NUM) = 0;
+
+for q = [1,2,4,11,13,14];
+
+    %instead of using 1,2,4,11,13,14 it now goes 1-6
+    k = k+1;     
+    %initialize sum value
+    sum(k) = 0;    
+         % split the sample into segments, not strictly necessary, kind of
+         % handy I guess, could replace entire code with filt_sample(j,q)
+         % instead of segment(k,j)
+         for j = 1:SEGMENT_SIZE
+             segment(k,j) = filt_sample(j,q);
+             sum(k) = sum(k) + segment(k,j);
+         end     
+        
+    % find the mean and the power
+    mean(k) = sum(k)/SEGMENT_SIZE;
+    power(k) = mean(k)^2;
+    sum_mean(LOOP_NUM) = sum_mean(LOOP_NUM) + mean(k)/ANALYSIS_1_CHANNELS;
+    sum_power(LOOP_NUM) = sum_power(LOOP_NUM) + power(k)/ANALYSIS_1_CHANNELS;
+    % determine what the max value is and where it occurs
+    [max_val(k), max_ind(k)] = max(segment(k,:));
+    % calculate the average of a few samples around the max value, and
+    % compare that to the mean value.
+    near_max(k) = 0;
+     
+      % calculate the stuff
+      for i = 1:11
+         near_max(k) = near_max(k) + segment(k,max(1,min(SEGMENT_SIZE,(max_ind(k) - 5 + i))))/11;
+      end 
+    sum_max(LOOP_NUM) = sum_max(LOOP_NUM) + near_max(k)/ANALYSIS_1_CHANNELS;
+    
+    
+    % probability shit time!
+    
+    %simple variation
+    var_sample(k) = var(segment(k,:));
+    var_sum(LOOP_NUM) = var_sum(LOOP_NUM) + var_sample(k);
+    
+    %remove place where program thinks you blinked, recheck variation,
+    %should be low
+    filt_seg(k,:) = segment(k,:);
+    for j = 1:36
+        % this is a fun line. the max and min functions make sure it is
+        % bounded by the indexes of the segment, ensuring there are no out
+        % of bounds errors. It then moves from the index of the peak value
+        % and flattens an area around the peak to the mean. If the peak was
+        % the major cause of variation in the sample, this should
+        % drastically reduce the variation
+        filt_seg(k,max(1,min(SEGMENT_SIZE,(max_ind(k) - 10 + j)))) = mean(k);
+    end
+    
+   
+    
+    %recheck the variation after filtering out the peak
+    var_filt_sample(k) = var(filt_seg(k,:));
+    var_filt_sum(LOOP_NUM) = var_filt_sum(LOOP_NUM) + var_filt_sample(k);
+end
+
+var_ratio(LOOP_NUM) = var_sum(LOOP_NUM) / var_filt_sum(LOOP_NUM);
+
+
+% calculate the correlation of the signal
+cor_sum(LOOP_NUM) = 0;
+for k = 1:ANALYSIS_1_CHANNELS-1; 
+    for x = (k+1):ANALYSIS_1_CHANNELS
+         cor_data(k,x) = correlation(segment(k,:), segment(x,:));
+         cor_sum(LOOP_NUM) = cor_sum(LOOP_NUM) + cor_data(k,x);
+    end
+end
+    
+% now is the fun part! Decide if they blinked, or not!
+
+% check the straight sum, make sure the maximum is higher than the mean
+if((sum_max(LOOP_NUM) - sum_mean(LOOP_NUM) > 30))
+    
+    %check the variances, make sure it dropped after filtering
+    if(var_ratio(LOOP_NUM) > 2.5)
+       
+        %we won the lottery and found a blink! (probably)
+        blink(LOOP_NUM) = 1;        
+        figure;
+        for j = 1:CHANNELS
+            subplot(6,3,j);
+            ylabel(sprintf('Channel %d' ,j));
+            plot(n, filt_sample(:,j));
+        end
+    end
+else
+    blink(LOOP_NUM) = 0;
+end
+
+%% Plots
+
+
+% figure;
+% for j = 1:CHANNELS
+%     subplot(6,3,j);
+%     ylabel(sprintf('Channel %d' ,j));
+%     plot(n, filt_sample(:,j));
+% end
+
+% if(LOOP_NUM == 13)
+% 
+% figure;
+% i = 0;
+% for j = [1,2,4,11,13,14]
+%     i = i +1;
+%     subplot(2,3,i);
+%     plot(n, sample(:,j));
+% end
+% 
+% figure;
+% i = 0;
+% for j = [1,2,4,11,13,14]
+%     i = i +1;
+%     subplot(2,3,i);
+%     plot(n, filt_seg(i,:));
+% end
+% 
+% end
+
+% figure;
+% plot(n,zeroed_sample(:,1));
+
+
+
+% for j = 1:CHANNELS
+%     figure;
+%     subplot(4,1,1)
+%     mesh(cwt_data(:,:,j));
+%     subplot(4,1,2);
+%     plot(n,sample(:,j));
+%     subplot(4,1,3);
+%     mesh(D(:,:,j));
+%     subplot(4,1,4);
+%     F(1,j) = 0;
+%     plot(n,F(:,j));
+% end
+
+%% End of outer loop brosef
+    
+%increment loop
+count = count +1;                                                                           
+end
+
+%% some looking at post data shit
+
+data = [cor_sum',var_sum', var_filt_sum',var_ratio',blink', sum_mean',sum_power',sum_max'];
+
+
+blink_cell_data(1,1:9) = {'','Correlation','Variance','Post-Filter Variance','Ratio of Variance','Boolean Blink','Mean','Power','Sum of Maximum'};
+blink_cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
+blink_cell_data(2:LOOP_NUM+1,2:9) = num2cell(data);
+
+
+%% depricated - analysis - checking for blink w/ correlation - static data input sample 
+
+% %gotta split into segments, picking 100 for easiness
+% 
+% SEGMENT_SIZE = 128;
+% CHANNELS = 6;
+% 
+% for i = 1:(floor(SAMPLES/SEGMENT_SIZE));
+% k = 0;
+% sum_mean(i) = 0;
+% sum_power(i) = 0;
+%     for q = [1,2,4,11,13,14];
+%         k = k+1;   
+%     
+%     sum(i,k) = 0;
+%          for j = 1:SEGMENT_SIZE
+%              segment(i,k,j) = filt_sample(((i-1)*SEGMENT_SIZE)+j,q);
+%              sum(i,k) = sum(i,k) + segment(i,k,j);
+%          end
+%     mean(i,k) = sum(i,k)/SEGMENT_SIZE;
+%     power(i,k) = mean(i,k)^2;
+%     sum_mean(i) = sum_mean(i) + mean(i,k);
+%     sum_power(i) = sum_power(i) + power(i,k);
+%     end
+% end
+% 
+% 
+% for i = 1:((floor(SAMPLES/SEGMENT_SIZE)))
+%     cor_sum(i) = 0;
+%     for k = 1:CHANNELS-1; 
+%         for x = (k+1):CHANNELS
+%              cov_data(k,x,i) = correlation(segment(i,k,:), segment(i,x,:));
+%              cor_sum(i) = cor_sum(i) + cov_data(k,x,i);
+%         end
+%     end
+% end
+%% depricated - old shit 
+% hard-coded filtering
+% LPF = F;
+% 
+% for j = 1:CHANNELS
+%     for i = 1:20;
+%         LPF(290+i,j) = 0;
+%         LPF(SAMPLES-310+i,j) = 0;
+%         LPF(890+i,j) = 0;
+%         LPF(SAMPLES-910+i,j) = 0;
+%     end
+%     filtered = ifft(LPF);
+% end
+
+%finding noise
+% noiselessF = F;
+% commonF = 1:1:SAMPLES;
+% 
+% levels = 8;
+% 
+% for q = 1:levels;
+%     for i = 1:SAMPLES
+%         for j = 1:CHANNELS
+%             commonF(i) = commonF(i) + noiselessF(i,j);
+%         end
+%     end
+% 
+%     for i = 1:30
+%         commonF(i) = 0;
+%         commonF(SAMPLES-i+1) = 0;
+%     end
+% %     figure;
+% %     plot(n,commonF);
+% 
+%     [Y,I] = max(commonF);
+% 
+% 
+%     for j = 1:CHANNELS
+%         for i = 1:30;
+%             noiselessF(I-15+i,j) = 0;
+%             noiselessF(SAMPLES-I-15+i,j) = 0;
+%         end
+%         filtered(:,j) = ifft(noiselessF(:,j));
+%     end
+%    commonF(:) = 0;
+% end
+%% depricated - testing 
+% for j = 1:CHANNELS
+%     for i = 1:1001
+%         if(i<500)
+%             sample(i,j) = cos((i-1)/1000*pi*i);
+%         elseif (i<750)
+%             sample(i,j) = cos(0.25*pi*i);
+%         else
+%             sample(i,j) = cos(0.125*pi*i);
+%         end
+%     end
+% end
