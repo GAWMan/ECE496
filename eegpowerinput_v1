@@ -1,0 +1,48 @@
+function [power,band_power] = eegpowerinput(simoutv1)
+      for i = 1:14
+          for j = 1:length(simoutv1(:,1))
+              eegdata(i,j)=simoutv1(j,i+1);
+          end
+      end 
+      timestart = 1;
+      timeend = 128;
+      [hdr,eegdatacool] = edfread('Ryan -Blink x 3-31.10.13.17.57.19.edf');
+
+waveletFunction = 'db8'; %OR 'sym8' OR 'coif5' OR 'db4'
+      for i = 1:14 %eeg(3-16) is the electrode data
+                [C,L] = wavedec(eegdata(i,timestart:timeend),8,waveletFunction); %DIVIDES INTO 8 BANDS
+                %% Calculation The Coefficients Vectors
+                cD1 = detcoef(C,L,1);                   %64-32 Gamma bands
+                cD2 = detcoef(C,L,2);                   %32-16 Gamma and some Beta bands
+                cD3 = detcoef(C,L,3);                   %16-8 Alpha and Mew bands
+                cD4 = detcoef(C,L,4);                   %8-4 Theta band
+                cD5 = detcoef(C,L,5);                   %4-2Hz Delta band /GARBAGE
+                cD6 = detcoef(C,L,6);                   %GARBAGE
+                cD7 = detcoef(C,L,7);                   %GARBAGE
+                cD8 = detcoef(C,L,8);                   %GARBAGE
+                band_power(i+1,1) = 0;
+                band_power(i+1,2) = (sum(cD1.^2))/length(cD1);
+                band_power(i+1,3) = (sum(cD2.^2))/length(cD2);
+                band_power(i+1,4) = (sum(cD3.^2))/length(cD3);                
+                band_power(i+1,5) = (sum(cD4.^2))/length(cD4);
+                band_power(i+1,6) = (sum(cD5.^2))/length(cD5);
+                band_power(i+1,7) = (sum(cD6.^2))/length(cD6);
+                band_power(i+1,8) = (sum(cD7.^2))/length(cD7);                
+                band_power(i+1,9) = (sum(cD8.^2))/length(cD8);
+                
+      end
+                for i=1:length(band_power(1,:))%zero out the ugly shit
+                    for j=1:length(band_power(:,1))
+                        if (band_power(j,i) < 10)
+                            band_power(j,i) = 0;
+                        end
+                    end
+                end
+               
+                  
+                power = num2cell(band_power);
+                power(1,:) = num2cell([0,64,32,16,8,4,2,1,0.5]);
+                power(2:15,1) = hdr.label(3:16)';
+
+                
+end
