@@ -1,0 +1,21 @@
+function[sigma] = covarianceinput(x,y)
+
+    Exy = 0;
+    Ey = 0;
+    Ex = 0;
+
+    q = length(x); 
+
+    for i = 1:q
+        Ey = Ey + (y(i) / q);
+        Ex = Ex + (x(i) / q);
+    end
+
+    E_temp = 0;
+    for i = 1:q
+        E_temp = E_temp + (y(i) - Ey) * (x(i) - Ex);
+    end
+
+    sigma = E_temp / q;
+
+end
