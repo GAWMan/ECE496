@@ -1,0 +1,18 @@
+Naming Convention - November 16, 2013
+
+November 16, 2013
+
+Arturo's Note
+- Naming Convention: 
+		Input Files:
+			When making a function.m file that calculates input parameters please note a name that directly relates to the what the file is calculating with input at the end of the file name.
+			For example: If we are making the file which calculates input parameters such as correlation between channels, we will have the name as "correlationinput.m".
+		Output Files:
+			When making a function.m file that calculates output parameters please note a name that directly relates to the what the file is calculating with output at the end of the file name.
+			For example: If we are making the file which calculates output parameters such as blinking, we will have the name as "blinkingoutput.m".
+		Training Files:
+			When making a function.m file that calculates training parameters please note a name that directly relates to the what the file is calculating with train at the end of the file name.
+			For example: If we are making the file which calculate some logistic regression training method, we will have the name as "lregressiontrain.m".
+
+When modifying a file, just submit a new version of it. In order to differentiate between modifications after the word input, output, or train in file name, place v# in order to keep track
+of the modications. # will be the version #. For example if I am making the second modification to "correlationinputv1.m". I will submit the new file as "correlationinputv2.m".
