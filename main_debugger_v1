@@ -1,12 +1,17 @@
 %% Params
 clear all
-% [hdr, record] = edfread('Ryan -Blink x 3-31.10.13.17.57.19.edf');
+
 % [hdr, record] = edfread('Ryan-eyebrow raise x3-31.10.13.18.45.10.edf');
-% [hdr, record] = edfread('Ryan-Eyes open-closed-open-31.10.13.18.03.32.edf');
 % [hdr, record] = edfread('Ryan-Left Bicep relaxed-clenched-relaxed-31.10.13.18.13.14.edf');
 % [hdr, record] = edfread('Ryan-left hand clench x3-31.10.13.18.50.00.edf');
+
+% algorithm picks this one up, why? - 2 of the 8 electrodes used were
+% terrible that day, hence picking up / not picking up data
+% [hdr, record] = edfread('Ryan -Blink x 3-31.10.13.17.57.19.edf');
 % [hdr, record] = edfread('Ryan-left jaw clench x3-31.10.13.18.20.15.edf');
 % [hdr, record] = edfread('Ryan-lift left arm x3-31.10.13.18.05.22.edf');
+% [hdr, record] = edfread('Ryan-Eyes open-closed-open-31.10.13.18.03.32.edf');
+
 % [hdr, record] = edfread('Ryan-lift right arm x3-31.10.13.18.06.18.edf');
 % [hdr, record] = edfread('Ryan-Right Bicep relaxed-clenched-relaxed-31.10.13.18.11.41.edf');
 % [hdr, record] = edfread('Ryan-right hand clench x3-31.10.13.18.49.21.edf');
@@ -15,7 +20,7 @@ clear all
 % new data
 
 % [hdr, record] = edfread('Ryan-blink x 5 -num1-16.11.13.14.34.31.edf');
-[hdr, record] = edfread('Ryan-Blink x 5 num2-16.11.13.14.35.06.edf');
+% [hdr, record] = edfread('Ryan-Blink x 5 num2-16.11.13.14.35.06.edf');
 % [hdr, record] = edfread('Ryan-blink x 5 num3-16.11.13.14.35.43.edf');
 % [hdr, record] = edfread('Ryan-blink x 5 num4-16.11.13.14.36.33.edf');
 % [hdr, record] = edfread('Ryan-blink x 5 num5-16.11.13.14.37.10.edf');
@@ -27,7 +32,13 @@ BANDS = 8;
 n = 1:1:SAMPLES;
 m = 1:1:CHANNELS;
 
+analyze = record(3:16,:);
 
+figure;
+for j = 1:CHANNELS
+    subplot(6,3,j);
+    plot(1:length(analyze), analyze(j,:));
+end
 
 %% big mother loop
 
@@ -88,7 +99,7 @@ end
 SEGMENT_SIZE = SAMPLES;
 
 %how many channels are used in the 1st analysys
-ANALYSIS_1_CHANNELS = 6;
+ANALYSIS_1_CHANNELS = 8;
 
 %zero out some cool things
 k = 0;
@@ -98,9 +109,9 @@ sum_max(LOOP_NUM) = 0;
 var_sum(LOOP_NUM) = 0;
 var_filt_sum(LOOP_NUM) = 0;
 
-for q = [1,2,4,11,13,14];
+for q = [1,2,3,4,11,12,13,14];
 
-    %instead of using 1,2,4,11,13,14 it now goes 1-6
+    %instead of using 1,2,3,4,11,12,13,14 it now goes 1-8
     k = k+1;     
     %initialize sum value
     sum(k) = 0;    
@@ -171,10 +182,10 @@ end
 % now is the fun part! Decide if they blinked, or not!
 
 % check the straight sum, make sure the maximum is higher than the mean
-if((sum_max(LOOP_NUM) - sum_mean(LOOP_NUM) > 30))
+if((sum_max(LOOP_NUM) - sum_mean(LOOP_NUM) > 15))
     
     %check the variances, make sure it dropped after filtering
-    if(var_ratio(LOOP_NUM) > 2.5)
+    if(var_ratio(LOOP_NUM) > 3)
        
         %we won the lottery and found a blink! (probably)
         blink(LOOP_NUM) = 1;        
@@ -199,22 +210,14 @@ end
 %     plot(n, filt_sample(:,j));
 % end
 
-% if(LOOP_NUM == 13)
+% if(LOOP_NUM == 5)
 % 
 % figure;
 % i = 0;
-% for j = [1,2,4,11,13,14]
+% for j = [1,2,3,4,11,12,13,14]
 %     i = i +1;
-%     subplot(2,3,i);
-%     plot(n, sample(:,j));
-% end
-% 
-% figure;
-% i = 0;
-% for j = [1,2,4,11,13,14]
-%     i = i +1;
-%     subplot(2,3,i);
-%     plot(n, filt_seg(i,:));
+%     subplot(2,4,i);
+%     plot(n, filt_sample(:,i));
 % end
 % 
 % end
@@ -245,13 +248,12 @@ end
 
 %% some looking at post data shit
 
-data = [cor_sum',var_sum', var_filt_sum',var_ratio',blink', sum_mean',sum_power',sum_max'];
-
-
-blink_cell_data(1,1:9) = {'','Correlation','Variance','Post-Filter Variance','Ratio of Variance','Boolean Blink','Mean','Power','Sum of Maximum'};
-blink_cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
-blink_cell_data(2:LOOP_NUM+1,2:9) = num2cell(data);
-
+% data = [cor_sum',var_sum', var_filt_sum',var_ratio',blink', sum_mean',sum_power',sum_max'];
+% 
+% 
+% blink_cell_data(1,1:9) = {'','Correlation','Variance','Post-Filter Variance','Ratio of Variance','Boolean Blink','Mean','Power','Sum of Maximum'};
+% blink_cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
+% blink_cell_data(2:LOOP_NUM+1,2:9) = num2cell(data);
 
 %% depricated - analysis - checking for blink w/ correlation - static data input sample 
 
