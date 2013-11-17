@@ -1,4 +1,5 @@
     %Training Data
+    TRIALS = 10;
     if trained == 1 %Now we will use LR instead of Ryan's guess
         P_blink = 1/(1+exp(-(dot(B,[1 covariance(2,:)]))))
         if (P_blink > 0.9)
@@ -8,9 +9,16 @@
         end
     end        
     if trained == 0 
-        if count == 4 %Fit to Ryan's prediction
+        if count == TRIALS %Fit to Ryan's prediction
             covariancetrain(count,:)=covariance(2,:);
             B = mnrfit(covariancetrain,blink+1);
+            if (isempty(B)) %Check if the LR worked
+                fprintf('No blinks detected, retrying regression. \n');
+                count = 0;
+                break;
+            else
+                fprintf('Regression successful, now using LR. \n');
+            end
             trained = 1;
         else
             covariancetrain(count,:)=covariance(2,:);
