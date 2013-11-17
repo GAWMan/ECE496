@@ -1,0 +1,20 @@
+    %Training Data
+    if trained == 1 %Now we will use LR instead of Ryan's guess
+        P_blink = 1/(1+exp(-(dot(B,[1 covariance(2,:)]))))
+        if (P_blink > 0.9)
+            blink_LR(count) = 1
+        else
+            blink_LR(count) = 0
+        end
+    end        
+    if trained == 0 
+        if count == 4 %Fit to Ryan's prediction
+            covariancetrain(count,:)=covariance(2,:);
+            B = mnrfit(covariancetrain,blink+1);
+            trained = 1;
+        else
+            covariancetrain(count,:)=covariance(2,:);
+        end
+    end    
+    %Outputs 
+   
