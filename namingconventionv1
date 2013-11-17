@@ -44,4 +44,4 @@ of the modications. # will be the version #. For example if I am making the seco
 				    end
 				end	
 			
-			Look how readable that code is. Sexy. 
+			Look how readable that code is. Sexy. All you need to do is go down to see where it ends because the for loop's end sticks out.
