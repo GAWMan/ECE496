@@ -1,8 +1,7 @@
 Naming Convention - November 16, 2013
 
-November 16, 2013
+November 16, 2013 - Arturo Iacobelli
 
-Arturo's Note
 - Naming Convention: 
 		Input Files:
 			When making a function.m file that calculates input parameters please note a name that directly relates to the what the file is calculating with input at the end of the file name.
@@ -16,3 +15,33 @@ Arturo's Note
 
 When modifying a file, just submit a new version of it. In order to differentiate between modifications after the word input, output, or train in file name, place v# in order to keep track
 of the modications. # will be the version #. For example if I am making the second modification to "correlationinputv1.m". I will submit the new file as "correlationinputv2.m".
+
+- Coding Convention:
+		Constants:
+			Make the variable all in capitals
+		
+		Modularize: 
+			Everything, whether you want a script or helper function to calculate some input, always have a .m file for it.
+			I think we can all agree we will be extremely pissed if we are just given one large function that does a bunch of things with no distinctive output.
+		Indent When:
+			Creating a for loop or if statement so it makes code easier to read.
+			For example: 
+				function[correlation, covariance]=correlationinput(simoutv1)
+				count = 1; 
+				    for i = 1:14
+				       for j = 1:14-i
+				          x = simoutv1(:,i+1);
+				          y = simoutv1(:,i+1+j);
+				          sigma = covarianceinput(x,y);
+				
+				          var_x = var(x);
+				          var_y = var(y);
+				            
+				          covariance(2,count) = sigma;
+				          correlation(2,count) = sigma / (var_x*var_y);
+				          count = count+1;
+				       end
+				    end
+				end	
+			
+			Look how readable that code is. Sexy. 
