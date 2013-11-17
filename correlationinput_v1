@@ -4,7 +4,7 @@ count = 1;
        for j = 1:14-i
           x = simoutv1(:,i+1);
           y = simoutv1(:,i+1+j);
-          sigma = covarianceofchannels(x,y);
+          sigma = covarianceinput(x,y);
 
           var_x = var(x);
           var_y = var(y);
