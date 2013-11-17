@@ -1,5 +1,4 @@
 function[sigma] = covarianceinput(x,y)
-
     Exy = 0;
     Ey = 0;
     Ex = 0;
@@ -17,5 +16,4 @@ function[sigma] = covarianceinput(x,y)
     end
 
     sigma = E_temp / q;
-
 end
