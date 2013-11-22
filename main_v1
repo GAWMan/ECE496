@@ -17,6 +17,7 @@ while(1)
     
     %Output Parameters
     blinkoutput;
+    eyestateoutput;
     
     %Training Parameters
     blinktrain;
