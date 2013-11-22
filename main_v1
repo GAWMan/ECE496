@@ -6,21 +6,23 @@ trained = 0;
 
 while(1)
     simOut= sim('simulinkcode.slx');  
+    
     %Constants
     SAMPLES = 128; %Number of samples in a 1 second interval from Emotiv EPOC Headset
     CHANNELS = 14; %Number of channels on the Emotiv EPOC Headset
     BANDS = 8; %Number of frequency bands detectable in the signal
-    tic;
+    %tic
+    
     %Input Parameters
     [power,band_power] = eegpowerinput(simout);
     [correlation,covariance]=correlationinput(simout); %Outputs correlation and covariance parameters for all possible pairs of channels
     
     %Output Parameters
     blinkoutput;
+    blinktrain;
     eyestateoutput;
     
     %Training Parameters
-    blinktrain;
+    %delay(count) = toc;
     count = count + 1; 
-    delay(count) = toc;  %This will show us how long the code is taking
 end
