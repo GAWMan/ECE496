@@ -1,5 +1,5 @@
 %Determines if eyes are open or closed
-%Check if O1 (channel 7) 9 Hz power is greater than a threshold
+%Check if O1 (channel 7) 9-11 Hz power is greater than a threshold
     
     sample = simout(:,2:15)';
     CHANNELS = 14;
@@ -7,12 +7,12 @@
     THRESHOLDPOWER = 850000; %Power to constitute a blink
     for j = 1:CHANNELS
             F(:,j) = fft(sample(:,j));
-            alphapower(count,j) = abs(F(10,j))^2;
+            alphapower(count,j) = (abs(F(11,j))^2+abs(F(10,j))^2+abs(F(9,j))^2)/3;
     end
 
 
     if (alphapower(count,7) > THRESHOLDPOWER)
-        eyesopen(count) = 1;
-    else
         eyesopen(count) = 0;
+    else
+        eyesopen(count) = 1;
     end
