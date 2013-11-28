@@ -52,3 +52,4 @@ elseif (jaw_power_sum(LOOP_NUM) > 100000)
     jaws_clenched(LOOP_NUM) = 1;
 else
     jaws_clenched(LOOP_NUM) = 0;
+end
