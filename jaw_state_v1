@@ -44,12 +44,11 @@ R_L_jaw_power(LOOP_NUM) = 1/L_R_jaw_power(LOOP_NUM);
 
 %determine what it was (0 = no clench, 1 = both, 2 = right, 3 = left), the
 %numbers here should be subject to change
-if((left_jaw_power(LOOP_NUM) > 50000) && (L_R_jaw_power(LOOP_NUM) > 3))
+if((left_jaw_power(LOOP_NUM) > 50000) && (L_R_jaw_power(LOOP_NUM) > 3)&& (L_R_jaw_power(LOOP_NUM) < 40))
     jaws_clenched(LOOP_NUM) = 3;
-elseif ((right_jaw_power(LOOP_NUM) > 50000) &&( R_L_jaw_power(LOOP_NUM) > 3))
+elseif ((right_jaw_power(LOOP_NUM) > 50000) &&(R_L_jaw_power(LOOP_NUM) > 3)&&(R_L_jaw_power(LOOP_NUM) < 40))
     jaws_clenched(LOOP_NUM) = 2;
 elseif (jaw_power_sum(LOOP_NUM) > 100000)
     jaws_clenched(LOOP_NUM) = 1;
 else
     jaws_clenched(LOOP_NUM) = 0;
-end
