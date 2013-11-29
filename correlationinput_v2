@@ -1,0 +1,8 @@
+function[corr] = correlationinput(x,y)
+
+    sigma = covarianceinput(x,y);
+    var_x = var(x);
+    var_y = var(y);
+          
+    corr = sigma / (var_x*var_y);
+end
