@@ -24,6 +24,18 @@ clear all
 % [hdr, record] = edfread('Ryan-blink x 5 num3-16.11.13.14.35.43.edf');
 % [hdr, record] = edfread('Ryan-blink x 5 num4-16.11.13.14.36.33.edf');
 % [hdr, record] = edfread('Ryan-blink x 5 num5-16.11.13.14.37.10.edf');
+% [hdr, record] = edfread('Ryan-alpha_rhythm_x1-21.11.13.17.53.31.edf');
+
+% [hdr, record] = edfread('Ryan-jaw_clench_x9-21.11.13.17.57.19.edf');
+% [hdr, record] = edfread('Ryan-left_jaw_clench_x10-21.11.13.18.00.04.edf');
+% [hdr, record] = edfread('Ryan-mixofjclench-28.11.13.17.35.54.edf');
+% [hdr, record] = edfread('Ryan-right_jaw_clench_x10-21.11.13.18.00.49.edf');
+
+[hdr, record] = edfread('Ryan-Left-28.11.13.17.29.12.edf');
+% [hdr, record] = edfread('Ryan-Right-28.11.13.17.30.41.edf');
+% [hdr, record] = edfread('Ryan-Feet-28.11.13.17.34.27.edf');
+
+
 
 count = 0;
 SAMPLES = 128;%length(record);
@@ -32,13 +44,11 @@ BANDS = 8;
 n = 1:1:SAMPLES;
 m = 1:1:CHANNELS;
 
-analyze = record(3:16,:);
 
-figure;
-for j = 1:CHANNELS
-    subplot(6,3,j);
-    plot(1:length(analyze), analyze(j,:));
-end
+% for j = 1:CHANNELS
+%     figure;
+%     plot(record(j+2,:));
+% end
 
 %% big mother loop
 
@@ -50,164 +60,316 @@ LOOP_NUM = count+1;
 sample = record(3:16,(SAMPLES*count)+1:(SAMPLES*(count+1)))';
 
 %% Transforms and Filters
-for q = 1:CHANNELS
-    for j = 1:SAMPLES 
-        min_sample(q) = min(sample(:,q));
-        zeroed_sample(j,q) = sample(j,q) - min_sample(q);
-    end
-end
-
-for j = 1:CHANNELS
-    cwt_data(:,:,j) = cwt(sample(:,j), 1:64, 'sym8');
-    F(:,j) = fft(sample(:,j));
-    F(1:floor((SAMPLES/5)),j) = 0;
-    filt_sample(:,j) = ifft(F(:,j));
-    [dwt_data(:,j),L(:,j)] = wavedec(sample(:,j),BANDS,'sym8');
-end
-
-for j = 1:CHANNELS
-    DCELL(:,j) = detcoef(dwt_data(:,j), L(:,j), [1:BANDS]);
-end
-
-
-for j = 1:BANDS
-    ratio(j) = length(DCELL{1,1}) / length(DCELL{j,1});
-end
-
-for q = 1:CHANNELS
-    for j = 1:BANDS
-        for i = 1:length(DCELL{1,1});
-            D(j,i,q) = DCELL{j,q}(  min (length(DCELL{j,1}),(ceil(i/ratio(j)))));
-        end
-    end
-end
+% for q = 1:CHANNELS
+%     for j = 1:SAMPLES 
+%         min_sample(q) = min(sample(:,q));
+%         zeroed_sample(j,q) = sample(j,q) - min_sample(q);
+%     end
+% end
+% 
+% for j = 1:CHANNELS
+%     cwt_data(:,:,j) = cwt(sample(:,j), 1:64, 'sym8');
+%     F(:,j) = fft(sample(:,j));
+%     F(1:floor((SAMPLES/5)),j) = 0;
+%     filt_sample(:,j) = ifft(F(:,j));
+%     [dwt_data(:,j),L(:,j)] = wavedec(sample(:,j),BANDS,'sym8');
+% end
+% 
+% for j = 1:CHANNELS
+%     DCELL(:,j) = detcoef(dwt_data(:,j), L(:,j), [1:BANDS]);
+% end
+% 
+% 
+% for j = 1:BANDS
+%     ratio(j) = length(DCELL{1,1}) / length(DCELL{j,1});
+% end
+% 
+% for q = 1:CHANNELS
+%     for j = 1:BANDS
+%         for i = 1:length(DCELL{1,1});
+%             D(j,i,q) = DCELL{j,q}(  min (length(DCELL{j,1}),(ceil(i/ratio(j)))));
+%         end
+%     end
+% end
 
 % to get a double out of a cell use DCELL{i,j}
 
 %% analysis - checking for blink w/ correlation - live stream input sample
-
-% variables that come from outside this function:
-% SAMPLES
-% filt_sample
-% LOOP_NUM
-
-% variables to come out of the function
-% blink_out (either 1 or 0)
-
-% no splitting into segments, only one segment
 % 
-SEGMENT_SIZE = SAMPLES;
+% % variables that come from outside this function:
+% % SAMPLES
+% % filt_sample
+% % LOOP_NUM
+% 
+% % variables to come out of the function
+% % blink_out (either 1 or 0)
+% 
+% % no splitting into segments, only one segment
+% % 
+% SEGMENT_SIZE = SAMPLES;
+% 
+% %how many channels are used in the 1st analysys
+% ANALYSIS_1_CHANNELS = 8;
+% 
+% %zero out some cool things
+% k = 0;
+% sum_mean(LOOP_NUM) = 0;
+% sum_power(LOOP_NUM) = 0;
+% sum_max(LOOP_NUM) = 0;
+% var_sum(LOOP_NUM) = 0;
+% var_filt_sum(LOOP_NUM) = 0;
+% 
+% for q = [1,2,3,4,11,12,13,14];
+% 
+%     %instead of using 1,2,3,4,11,12,13,14 it now goes 1-8
+%     k = k+1;     
+%     %initialize sum value
+%     sum(k) = 0;    
+%          % split the sample into segments, not strictly necessary, kind of
+%          % handy I guess, could replace entire code with filt_sample(j,q)
+%          % instead of segment(k,j)
+%          for j = 1:SEGMENT_SIZE
+%              segment(k,j) = filt_sample(j,q);
+%              sum(k) = sum(k) + segment(k,j);
+%          end     
+%         
+%     % find the mean and the power
+%     mean(k) = sum(k)/SEGMENT_SIZE;
+%     power(k) = mean(k)^2;
+%     sum_mean(LOOP_NUM) = sum_mean(LOOP_NUM) + mean(k)/ANALYSIS_1_CHANNELS;
+%     sum_power(LOOP_NUM) = sum_power(LOOP_NUM) + power(k)/ANALYSIS_1_CHANNELS;
+%     % determine what the max value is and where it occurs
+%     [max_val(k), max_ind(k)] = max(segment(k,:));
+%     % calculate the average of a few samples around the max value, and
+%     % compare that to the mean value.
+%     near_max(k) = 0;
+%      
+%       % calculate the stuff
+%       for i = 1:11
+%          near_max(k) = near_max(k) + segment(k,max(1,min(SEGMENT_SIZE,(max_ind(k) - 5 + i))))/11;
+%       end 
+%     sum_max(LOOP_NUM) = sum_max(LOOP_NUM) + near_max(k)/ANALYSIS_1_CHANNELS;
+%     
+%     
+%     % probability shit time!
+%     
+%     %simple variation
+%     var_sample(k) = var(segment(k,:));
+%     var_sum(LOOP_NUM) = var_sum(LOOP_NUM) + var_sample(k);
+%     
+%     %remove place where program thinks you blinked, recheck variation,
+%     %should be low
+%     filt_seg(k,:) = segment(k,:);
+%     for j = 1:36
+%         % this is a fun line. the max and min functions make sure it is
+%         % bounded by the indexes of the segment, ensuring there are no out
+%         % of bounds errors. It then moves from the index of the peak value
+%         % and flattens an area around the peak to the mean. If the peak was
+%         % the major cause of variation in the sample, this should
+%         % drastically reduce the variation
+%         filt_seg(k,max(1,min(SEGMENT_SIZE,(max_ind(k) - 10 + j)))) = mean(k);
+%     end
+%     
+%    
+%     
+%     %recheck the variation after filtering out the peak
+%     var_filt_sample(k) = var(filt_seg(k,:));
+%     var_filt_sum(LOOP_NUM) = var_filt_sum(LOOP_NUM) + var_filt_sample(k);
+% end
+% 
+% var_ratio(LOOP_NUM) = var_sum(LOOP_NUM) / var_filt_sum(LOOP_NUM);
+% 
+% 
+% % calculate the correlation of the signal
+% cor_sum(LOOP_NUM) = 0;
+% for k = 1:ANALYSIS_1_CHANNELS-1; 
+%     for x = (k+1):ANALYSIS_1_CHANNELS
+%          cor_data(k,x) = correlation(segment(k,:), segment(x,:));
+%          cor_sum(LOOP_NUM) = cor_sum(LOOP_NUM) + cor_data(k,x);
+%     end
+% end
+%     
+% % now is the fun part! Decide if they blinked, or not!
+% 
+% % check the straight sum, make sure the maximum is higher than the mean
+% if((sum_max(LOOP_NUM) - sum_mean(LOOP_NUM) > 15))
+%     
+%     %check the variances, make sure it dropped after filtering
+%     if(var_ratio(LOOP_NUM) > 3)
+%        
+%         %we won the lottery and found a blink! (probably)
+%         blink(LOOP_NUM) = 1;        
+%         figure;
+%         for j = 1:CHANNELS
+%             subplot(6,3,j);
+%             ylabel(sprintf('Channel %d' ,j));
+%             plot(n, filt_sample(:,j));
+%         end
+%     end
+% else
+%     blink(LOOP_NUM) = 0;
+% end
 
-%how many channels are used in the 1st analysys
-ANALYSIS_1_CHANNELS = 8;
+%% analysis - eyes open/closed
 
-%zero out some cool things
+% %Determines if eyes are open or closed
+% %Check if O1 (channel 7) 9 Hz power is greater than a threshold
+%     
+%     %reading sample from record
+%     %sample = simout(:,2:15)';
+%     CHANNELS = 14;
+%     
+%     THRESHOLDPOWER = 850000; %Power to constitute a blink
+%     
+%     for j = 1:CHANNELS
+%             F(j,:) = fft(sample(j,:));
+%     end
+% 
+%     alpha_rythm(1:CHANNELS, 1:SAMPLES) = 0;
+%     
+%     for j = 1:CHANNELS
+%         alpha_rythm(j,:) = 0;
+%         for i = 9
+%             alpha_rythm(j,i) = F(j,i);
+%         end
+%     end
+%     
+%     figure;            
+%     for j = 1:CHANNELS
+%         subplot(6,3,j);
+%         plot(1:SAMPLES, ifft(alpha_rythm(j,:)));
+%     end
+%     
+%     for j = 1:CHANNELS
+%         alphapower(LOOP_NUM,j) = 0;
+%         %average across 9-11hz, location of alpha band
+%         for i = 1:3
+%             alphapower(LOOP_NUM,j) = alphapower(LOOP_NUM,j) + abs(F(j,9+i))^2;
+%         end
+%         alphapower(LOOP_NUM,j) = alphapower(LOOP_NUM,j)/3;
+%     end
+% 
+%     if (alphapower(LOOP_NUM,7) > THRESHOLDPOWER)
+%         eyesopen(LOOP_NUM) = 1;
+%     else
+%         eyesopen(LOOP_NUM) = 0;
+%     end
+%     
+%     %sum and average the powers in order to get a better look
+%     sum_alphapower(LOOP_NUM) = 0;
+%     for j = 1:CHANNELS
+%             sum_alphapower(LOOP_NUM) = sum_alphapower(LOOP_NUM)+ alphapower(LOOP_NUM,j);
+%     end
+
+%% analysis - jaw state
+
+% %determines if the subject is clenching their jaw
+% %inputs: LOOP_NUM, sample
+% % *the variable sample needs to have 128 samples exactly*
+% %outputs: jaws_clenched
+% 
+% %first thing that has to be done is some filtering
+% %take frequencies above 32hz, when you clench your jaw it's high frequency
+% %and high power.
+% jaw_power(LOOP_NUM) = 0;
+% k = 0;
+% jaw_power_sum(LOOP_NUM) = 0;
+% 
+% for j = [1,2,3,4,11,12,13,14];
+%     %instead of using 1,2,3,4,11,12,13,14 it now goes 1-8
+%     k = k+1; 
+%     
+%     F(k,:) = fft(sample(:,j));
+%     jaw_power(LOOP_NUM,k) = 0;
+%     
+%     %selects frequencies from 32-48 Hz
+%     for i = 33:49;
+%         jaw_power(LOOP_NUM,k) = jaw_power(LOOP_NUM,k)+ abs(F(k,i))^2;
+%     end
+%     
+%     %normalize for the range of frequencies being sampled, in this case
+%     %looking at 16 frequencies
+%     jaw_power(LOOP_NUM,k) = jaw_power(LOOP_NUM,k)/16;
+%     jaw_power_sum(LOOP_NUM) = jaw_power_sum(LOOP_NUM) + jaw_power(LOOP_NUM,k)/8;
+% end
+% 
+% %determine powers in the right and left jaws as well as the ratio between
+% %them
+% left_jaw_power(LOOP_NUM) = 0;
+% right_jaw_power(LOOP_NUM) = 0;
+% L_R_jaw_power(LOOP_NUM) = 0;
+% R_L_jaw_power(LOOP_NUM) = 0;
+% for j = 1:4
+%     left_jaw_power(LOOP_NUM) = left_jaw_power(LOOP_NUM) + jaw_power(LOOP_NUM,j)/4;
+%     right_jaw_power(LOOP_NUM) = right_jaw_power(LOOP_NUM) + jaw_power(LOOP_NUM,j+4)/4;
+% end
+% L_R_jaw_power(LOOP_NUM) = left_jaw_power(LOOP_NUM)/right_jaw_power(LOOP_NUM);
+% R_L_jaw_power(LOOP_NUM) = 1/L_R_jaw_power(LOOP_NUM);
+%   
+% 
+% %determine what it was (0 = no clench, 1 = both, 2 = right, 3 = left), the
+% %numbers here should be subject to change
+% if((left_jaw_power(LOOP_NUM) > 10000) && (L_R_jaw_power(LOOP_NUM) > 3)&& (L_R_jaw_power(LOOP_NUM) < 40))
+%     jaws_clenched(LOOP_NUM) = 1;
+%     left_jaw_clench(LOOP_NUM) = 2;
+%     right_jaw_clench(LOOP_NUM) = 1;
+%     jaw_out(LOOP_NUM) = 3;
+% elseif ((right_jaw_power(LOOP_NUM) > 10000) &&(R_L_jaw_power(LOOP_NUM) > 3)&&(R_L_jaw_power(LOOP_NUM) < 40))
+%     jaws_clenched(LOOP_NUM) = 1;
+%     left_jaw_clench(LOOP_NUM) = 1;
+%     right_jaw_clench(LOOP_NUM) = 2;
+%     jaw_out(LOOP_NUM) = 2;
+% elseif (jaw_power_sum(LOOP_NUM) > 50000)
+%     jaws_clenched(LOOP_NUM) = 2;
+%     left_jaw_clench(LOOP_NUM) = 1;
+%     right_jaw_clench(LOOP_NUM) = 1;
+%     jaw_out(LOOP_NUM) = 1;
+% else
+%     jaws_clenched(LOOP_NUM) = 1;
+%     left_jaw_clench(LOOP_NUM) = 1;
+%     right_jaw_clench(LOOP_NUM) = 1;
+%     jaw_out(LOOP_NUM) = 0;
+% end
+
+%% analysis - Mu desynch
+
+%determines movement in the subject
+% inputs : sample, LOOP_NUM
+% outputs: mu_out
+
+%first thing that has to be done is some filtering
+%mu band from 8-13 Hz, take samples 8-13 of FFT
+% take electrodes 4,5,10,11, these are over motor cortex
+
+mu_left_power(LOOP_NUM) = 0;
+mu_right_power(LOOP_NUM) = 0;
+
 k = 0;
-sum_mean(LOOP_NUM) = 0;
-sum_power(LOOP_NUM) = 0;
-sum_max(LOOP_NUM) = 0;
-var_sum(LOOP_NUM) = 0;
-var_filt_sum(LOOP_NUM) = 0;
-
-for q = [1,2,3,4,11,12,13,14];
-
-    %instead of using 1,2,3,4,11,12,13,14 it now goes 1-8
-    k = k+1;     
-    %initialize sum value
-    sum(k) = 0;    
-         % split the sample into segments, not strictly necessary, kind of
-         % handy I guess, could replace entire code with filt_sample(j,q)
-         % instead of segment(k,j)
-         for j = 1:SEGMENT_SIZE
-             segment(k,j) = filt_sample(j,q);
-             sum(k) = sum(k) + segment(k,j);
-         end     
-        
-    % find the mean and the power
-    mean(k) = sum(k)/SEGMENT_SIZE;
-    power(k) = mean(k)^2;
-    sum_mean(LOOP_NUM) = sum_mean(LOOP_NUM) + mean(k)/ANALYSIS_1_CHANNELS;
-    sum_power(LOOP_NUM) = sum_power(LOOP_NUM) + power(k)/ANALYSIS_1_CHANNELS;
-    % determine what the max value is and where it occurs
-    [max_val(k), max_ind(k)] = max(segment(k,:));
-    % calculate the average of a few samples around the max value, and
-    % compare that to the mean value.
-    near_max(k) = 0;
-     
-      % calculate the stuff
-      for i = 1:11
-         near_max(k) = near_max(k) + segment(k,max(1,min(SEGMENT_SIZE,(max_ind(k) - 5 + i))))/11;
-      end 
-    sum_max(LOOP_NUM) = sum_max(LOOP_NUM) + near_max(k)/ANALYSIS_1_CHANNELS;
-    
-    
-    % probability shit time!
-    
-    %simple variation
-    var_sample(k) = var(segment(k,:));
-    var_sum(LOOP_NUM) = var_sum(LOOP_NUM) + var_sample(k);
-    
-    %remove place where program thinks you blinked, recheck variation,
-    %should be low
-    filt_seg(k,:) = segment(k,:);
-    for j = 1:36
-        % this is a fun line. the max and min functions make sure it is
-        % bounded by the indexes of the segment, ensuring there are no out
-        % of bounds errors. It then moves from the index of the peak value
-        % and flattens an area around the peak to the mean. If the peak was
-        % the major cause of variation in the sample, this should
-        % drastically reduce the variation
-        filt_seg(k,max(1,min(SEGMENT_SIZE,(max_ind(k) - 10 + j)))) = mean(k);
-    end
-    
-   
-    
-    %recheck the variation after filtering out the peak
-    var_filt_sample(k) = var(filt_seg(k,:));
-    var_filt_sum(LOOP_NUM) = var_filt_sum(LOOP_NUM) + var_filt_sample(k);
+for j = [5,10];
+    k = k +1;
+    F(k,:) = fft(sample(:,j));
 end
 
-var_ratio(LOOP_NUM) = var_sum(LOOP_NUM) / var_filt_sum(LOOP_NUM);
-
-
-% calculate the correlation of the signal
-cor_sum(LOOP_NUM) = 0;
-for k = 1:ANALYSIS_1_CHANNELS-1; 
-    for x = (k+1):ANALYSIS_1_CHANNELS
-         cor_data(k,x) = correlation(segment(k,:), segment(x,:));
-         cor_sum(LOOP_NUM) = cor_sum(LOOP_NUM) + cor_data(k,x);
-    end
-end
-    
-% now is the fun part! Decide if they blinked, or not!
-
-% check the straight sum, make sure the maximum is higher than the mean
-if((sum_max(LOOP_NUM) - sum_mean(LOOP_NUM) > 15))
-    
-    %check the variances, make sure it dropped after filtering
-    if(var_ratio(LOOP_NUM) > 3)
-       
-        %we won the lottery and found a blink! (probably)
-        blink(LOOP_NUM) = 1;        
-        figure;
-        for j = 1:CHANNELS
-            subplot(6,3,j);
-            ylabel(sprintf('Channel %d' ,j));
-            plot(n, filt_sample(:,j));
-        end
-    end
-else
-    blink(LOOP_NUM) = 0;
+for j = 1
+   %frequencies looked at
+   for i = 8:13
+   mu_left_power(LOOP_NUM) = mu_left_power(LOOP_NUM) + abs(F(j,i))^2;
+   mu_right_power(LOOP_NUM) = mu_right_power(LOOP_NUM) + abs(F(j+1,i))^2;
+   end
 end
 
+mu_L_R_ratio(LOOP_NUM) =  mu_left_power(LOOP_NUM) / mu_right_power(LOOP_NUM);
+    
+% mu_corr(LOOP_NUM) = correlationinput(mu_left_power(LOOP_NUM),mu_right_power(LOOP_NUM));
+%     
+% mu_cov(LOOP_NUM) = covarianceinput(mu_left_power(LOOP_NUM),mu_right_power(LOOP_NUM));
 %% Plots
 
-
+% 
 % figure;
 % for j = 1:CHANNELS
 %     subplot(6,3,j);
-%     ylabel(sprintf('Channel %d' ,j));
-%     plot(n, filt_sample(:,j));
+%     mesh(cwt_data(:,:,j));
 % end
 
 % if(LOOP_NUM == 5)
@@ -246,14 +408,78 @@ end
 count = count +1;                                                                           
 end
 
-%% some looking at post data shit
-
+%% some looking at post data shit - blink or not
 % data = [cor_sum',var_sum', var_filt_sum',var_ratio',blink', sum_mean',sum_power',sum_max'];
 % 
 % 
 % blink_cell_data(1,1:9) = {'','Correlation','Variance','Post-Filter Variance','Ratio of Variance','Boolean Blink','Mean','Power','Sum of Maximum'};
 % blink_cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
 % blink_cell_data(2:LOOP_NUM+1,2:9) = num2cell(data);
+
+%% post run looking at things - eyes open or not
+% data = [alphapower, eyesopen'];
+% 
+% cell_data(1,1:16) = {'','Alpha Band Power Channel 1','Alpha Band Power Channel 2','Alpha Band Power Channel 3','Alpha Band Power Channel 4','Alpha Band Power Channel 5','Alpha Band Power Channel 6','Alpha Band Power Channel 7','Alpha Band Power Channel 8','Alpha Band Power Channel 9','Alpha Band Power Channel 10','Alpha Band Power Channel 11','Alpha Band Power Channel 12','Alpha Band Power Channel 13','Alpha Band Power Channel 14','Are Eyes open?'};
+% cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
+% cell_data(2:LOOP_NUM+1,2:16) = num2cell(data);
+
+%% post run looking at things + training - Jaw Clench
+
+% data = [jaw_power_sum', left_jaw_power', right_jaw_power', L_R_jaw_power', R_L_jaw_power',jaw_out'];
+% 
+% % training for left
+% training_data_l = data(:,[2,3,5]);
+% training_target_l = left_jaw_clench';
+% %B_l = mnrfit(training_data_l,training_target_l);
+% B_l = [1.72752071462896;-0.000183311588519734;0.000420439487852312;2.81944522671809];
+% for i=1:LOOP_NUM
+%     left_jaw_clench_LR(i) = 2-1/(1+exp(-dot(B_l,[1 training_data_l(i,1:3)])));
+% end
+% 
+% % training for right
+% training_data_r = data(:,[1:4]);
+% training_target_r = right_jaw_clench';
+% %B_r = mnrfit(training_data_r,training_target_r);
+% B_r = [-1.67886498423685;-0.000145234887899718;0.000398581147507900;-5.52644710028560e-05;4.00452165517145];
+% for i=1:LOOP_NUM
+%     right_jaw_clench_LR(i) = 2-1/(1+exp(-dot(B_r,[1 training_data_r(i,1:4)])));
+% end
+% 
+% % training for both
+% training_data_b = data(:,[1,4,5]);
+% training_target_b = jaws_clenched';
+% B_b = mnrfit(training_data_b,training_target_b);
+% for i=1:LOOP_NUM
+%     jaws_clench_LR(i) = 2-1/(1+exp(-dot(B_b,[1 training_data_b(i,1:3)])));
+% end
+% 
+% data = [data,left_jaw_clench_LR',right_jaw_clench_LR',jaws_clench_LR'];
+% 
+% jaw_cell_data(1,1:10) = {'','Sum','Left','Right','L/R','R/L','Output','Left Guess','Right Guess','Both'};
+% jaw_cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
+% jaw_cell_data(2:LOOP_NUM+1,2:10) = num2cell(data);
+
+%% post run looking at things + training - Mu Suppression
+
+mu_R_L_ratio = 1./mu_L_R_ratio;
+data = [mu_left_power', mu_right_power', mu_L_R_ratio',mu_R_L_ratio'];
+
+
+mu_cell_data(1,1:5) = {'','Left Power','Right Power','L/R','R/L'};
+mu_cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
+mu_cell_data(2:LOOP_NUM+1,2:5) = num2cell(data);
+
+figure;
+subplot(4,1,1)
+plot(mu_right_power);
+subplot(4,1,2);
+plot(mu_left_power);
+subplot(4,1,3);
+plot(mu_L_R_ratio);
+subplot(4,1,4);
+plot(mu_R_L_ratio);
+
+
 
 %% depricated - analysis - checking for blink w/ correlation - static data input sample 
 
