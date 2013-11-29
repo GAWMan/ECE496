@@ -31,9 +31,13 @@ clear all
 % [hdr, record] = edfread('Ryan-mixofjclench-28.11.13.17.35.54.edf');
 % [hdr, record] = edfread('Ryan-right_jaw_clench_x10-21.11.13.18.00.49.edf');
 
-[hdr, record] = edfread('Ryan-Left-28.11.13.17.29.12.edf');
+% [hdr, record] = edfread('Ryan-Left-28.11.13.17.29.12.edf');
 % [hdr, record] = edfread('Ryan-Right-28.11.13.17.30.41.edf');
 % [hdr, record] = edfread('Ryan-Feet-28.11.13.17.34.27.edf');
+
+% [hdr, record] = edfread('Ryan-jawmov1-28.11.13.22.01.35.edf');
+
+[hdr, record] = edfread('Ryan-Hands-28.11.13.22.12.10.edf');
 
 
 
@@ -44,6 +48,13 @@ BANDS = 8;
 n = 1:1:SAMPLES;
 m = 1:1:CHANNELS;
 
+markers = record(36,:);
+left_jaw_bool = 0;
+right_jaw_bool = 0;
+both_jaws_bool = 0;
+
+left_hand_bool = 0;
+right_hand_bool = 0;
 
 % for j = 1:CHANNELS
 %     figure;
@@ -55,6 +66,7 @@ m = 1:1:CHANNELS;
 while((SAMPLES*(count+1)) <= length(record))
 LOOP_NUM = count+1;
 
+    
 %% Init Variables
 
 sample = record(3:16,(SAMPLES*count)+1:(SAMPLES*(count+1)))';
@@ -307,50 +319,99 @@ sample = record(3:16,(SAMPLES*count)+1:(SAMPLES*(count+1)))';
 % R_L_jaw_power(LOOP_NUM) = 1/L_R_jaw_power(LOOP_NUM);
 %   
 % 
-% %determine what it was (0 = no clench, 1 = both, 2 = right, 3 = left), the
-% %numbers here should be subject to change
-% if((left_jaw_power(LOOP_NUM) > 10000) && (L_R_jaw_power(LOOP_NUM) > 3)&& (L_R_jaw_power(LOOP_NUM) < 40))
+% % %determine what it was (0 = no clench, 1 = both, 2 = right, 3 = left), the
+% % %numbers here should be subject to change
+% % if((left_jaw_power(LOOP_NUM) > 10000) && (L_R_jaw_power(LOOP_NUM) > 3)&& (L_R_jaw_power(LOOP_NUM) < 40))
+% %     jaws_clenched(LOOP_NUM) = 1;
+% %     left_jaw_clench(LOOP_NUM) = 2;
+% %     right_jaw_clench(LOOP_NUM) = 1;
+% %     jaw_out(LOOP_NUM) = 3;
+% % elseif ((right_jaw_power(LOOP_NUM) > 10000) &&(R_L_jaw_power(LOOP_NUM) > 3)&&(R_L_jaw_power(LOOP_NUM) < 40))
+% %     jaws_clenched(LOOP_NUM) = 1;
+% %     left_jaw_clench(LOOP_NUM) = 1;
+% %     right_jaw_clench(LOOP_NUM) = 2;
+% %     jaw_out(LOOP_NUM) = 2;
+% % elseif (jaw_power_sum(LOOP_NUM) > 50000)
+% %     jaws_clenched(LOOP_NUM) = 2;
+% %     left_jaw_clench(LOOP_NUM) = 1;
+% %     right_jaw_clench(LOOP_NUM) = 1;
+% %     jaw_out(LOOP_NUM) = 1;
+% % else
+% %     jaws_clenched(LOOP_NUM) = 1;
+% %     left_jaw_clench(LOOP_NUM) = 1;
+% %     right_jaw_clench(LOOP_NUM) = 1;
+% %     jaw_out(LOOP_NUM) = 0;
+% % end
+% 
+% % calculate which event occured
+% 
+% if(left_jaw_bool == 1)
+%     left_jaw_clench(LOOP_NUM) =2;
+%     right_jaw_clench(LOOP_NUM) =1; 
 %     jaws_clenched(LOOP_NUM) = 1;
-%     left_jaw_clench(LOOP_NUM) = 2;
-%     right_jaw_clench(LOOP_NUM) = 1;
-%     jaw_out(LOOP_NUM) = 3;
-% elseif ((right_jaw_power(LOOP_NUM) > 10000) &&(R_L_jaw_power(LOOP_NUM) > 3)&&(R_L_jaw_power(LOOP_NUM) < 40))
+%     jaw_out(LOOP_NUM) = 3; 
+% elseif(right_jaw_bool == 1)
+%     right_jaw_clench(LOOP_NUM) =2;  
+%     left_jaw_clench(LOOP_NUM) =1;
 %     jaws_clenched(LOOP_NUM) = 1;
-%     left_jaw_clench(LOOP_NUM) = 1;
-%     right_jaw_clench(LOOP_NUM) = 2;
-%     jaw_out(LOOP_NUM) = 2;
-% elseif (jaw_power_sum(LOOP_NUM) > 50000)
+%     jaw_out(LOOP_NUM) = 2; 
+% elseif(both_jaws_bool == 1)
 %     jaws_clenched(LOOP_NUM) = 2;
-%     left_jaw_clench(LOOP_NUM) = 1;
-%     right_jaw_clench(LOOP_NUM) = 1;
-%     jaw_out(LOOP_NUM) = 1;
+%     left_jaw_clench(LOOP_NUM) =1;
+%     right_jaw_clench(LOOP_NUM) =1; 
+%     jaw_out(LOOP_NUM) = 1; 
 % else
+%     left_jaw_clench(LOOP_NUM) =1;
+%     right_jaw_clench(LOOP_NUM) =1; 
 %     jaws_clenched(LOOP_NUM) = 1;
-%     left_jaw_clench(LOOP_NUM) = 1;
-%     right_jaw_clench(LOOP_NUM) = 1;
-%     jaw_out(LOOP_NUM) = 0;
+%     jaw_out(LOOP_NUM) = 0; 
+%     
 % end
-
+% 
+% 
+% for j = 1:SAMPLES
+%     marky_mark = (markers(j+SAMPLES*count));
+%     
+%     if (marky_mark == 10)
+%         left_jaw_bool = 1;
+%         left_jaw_clench(LOOP_NUM) =2;
+%     elseif (marky_mark == 11)
+%         left_jaw_bool = 0;
+%     elseif (marky_mark == 20)
+%         right_jaw_bool = 1;
+%         right_jaw_clench(LOOP_NUM) =2;
+%     elseif (marky_mark == 21)
+%         right_jaw_bool = 0;
+%     elseif (marky_mark == 30)
+%         both_jaws_bool = 1;
+%         jaws_clenched(LOOP_NUM) =2;
+%     elseif (marky_mark == 31)
+%         both_jaws_bool = 0;
+%     end
+% end
+        
 %% analysis - Mu desynch
 
-%determines movement in the subject
+% determines movement in the subject
 % inputs : sample, LOOP_NUM
 % outputs: mu_out
-
-%first thing that has to be done is some filtering
-%mu band from 8-13 Hz, take samples 8-13 of FFT
+% 
+% first thing that has to be done is some filtering
+% mu band from 8-13 Hz, take samples 8-13 of FFT
 % take electrodes 4,5,10,11, these are over motor cortex
 
 mu_left_power(LOOP_NUM) = 0;
 mu_right_power(LOOP_NUM) = 0;
 
+
 k = 0;
 for j = [5,10];
     k = k +1;
+    mu_sample(k,:) = sample(:,j);
     F(k,:) = fft(sample(:,j));
 end
 
-for j = 1
+for j = 1:1
    %frequencies looked at
    for i = 8:13
    mu_left_power(LOOP_NUM) = mu_left_power(LOOP_NUM) + abs(F(j,i))^2;
@@ -360,9 +421,42 @@ end
 
 mu_L_R_ratio(LOOP_NUM) =  mu_left_power(LOOP_NUM) / mu_right_power(LOOP_NUM);
     
-% mu_corr(LOOP_NUM) = correlationinput(mu_left_power(LOOP_NUM),mu_right_power(LOOP_NUM));
-%     
-% mu_cov(LOOP_NUM) = covarianceinput(mu_left_power(LOOP_NUM),mu_right_power(LOOP_NUM));
+mu_corr(LOOP_NUM) = correlationinput(mu_sample(1,:), mu_sample(2,:));
+    
+mu_cov(LOOP_NUM) = covarianceinput(mu_sample(1,:), mu_sample(2,:));
+
+if(left_hand_bool == 1)
+    left_hand_move(LOOP_NUM) =2;
+    right_hand_move(LOOP_NUM) =1; 
+    move_out(LOOP_NUM) = 2; 
+elseif(right_hand_bool == 1)
+    left_hand_move(LOOP_NUM) =1;
+    right_hand_move(LOOP_NUM) =2; 
+    move_out(LOOP_NUM) = 1;  
+else
+    left_hand_move(LOOP_NUM) =1;
+    right_hand_move(LOOP_NUM) =1; 
+    move_out(LOOP_NUM) = 0; 
+    
+end
+
+
+for j = 1:SAMPLES
+    marky_mark = (markers(j+SAMPLES*count));
+    
+    if (marky_mark == 40)
+        left_hand_bool = 1;
+        left_hand_move(LOOP_NUM) =2;
+    elseif (marky_mark == 41)
+        left_hand_bool = 0;
+    elseif (marky_mark == 50)
+        right_hand_bool = 1;
+        right_hand_move(LOOP_NUM) =2;
+    elseif (marky_mark == 51)
+        right_hand_bool = 0;
+    end
+end
+
 %% Plots
 
 % 
@@ -424,14 +518,14 @@ end
 % cell_data(2:LOOP_NUM+1,2:16) = num2cell(data);
 
 %% post run looking at things + training - Jaw Clench
-
+% 
 % data = [jaw_power_sum', left_jaw_power', right_jaw_power', L_R_jaw_power', R_L_jaw_power',jaw_out'];
 % 
 % % training for left
 % training_data_l = data(:,[2,3,5]);
 % training_target_l = left_jaw_clench';
-% %B_l = mnrfit(training_data_l,training_target_l);
-% B_l = [1.72752071462896;-0.000183311588519734;0.000420439487852312;2.81944522671809];
+% [B_l, dev_l] = mnrfit(training_data_l,training_target_l);
+% %B_l = [1.72752071462896;-0.000183311588519734;0.000420439487852312;2.81944522671809];
 % for i=1:LOOP_NUM
 %     left_jaw_clench_LR(i) = 2-1/(1+exp(-dot(B_l,[1 training_data_l(i,1:3)])));
 % end
@@ -439,8 +533,8 @@ end
 % % training for right
 % training_data_r = data(:,[1:4]);
 % training_target_r = right_jaw_clench';
-% %B_r = mnrfit(training_data_r,training_target_r);
-% B_r = [-1.67886498423685;-0.000145234887899718;0.000398581147507900;-5.52644710028560e-05;4.00452165517145];
+% [B_r, dev_r]  = mnrfit(training_data_r,training_target_r);
+% %B_r = [-1.67886498423685;-0.000145234887899718;0.000398581147507900;-5.52644710028560e-05;4.00452165517145];
 % for i=1:LOOP_NUM
 %     right_jaw_clench_LR(i) = 2-1/(1+exp(-dot(B_r,[1 training_data_r(i,1:4)])));
 % end
@@ -458,27 +552,89 @@ end
 % jaw_cell_data(1,1:10) = {'','Sum','Left','Right','L/R','R/L','Output','Left Guess','Right Guess','Both'};
 % jaw_cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
 % jaw_cell_data(2:LOOP_NUM+1,2:10) = num2cell(data);
+% 
+% 
+% 
+% % lessons in british royalty
+% % the kings are the average output of the Logistic Regression when it is
+% % supposed to be 2. The closer to 2 the better!
+% % the queens are the average output of the Logistic Regression when it is
+% % supposed to be 1. The closer to 1 the better!
+% 
+% princes = [left_jaw_clench_LR',right_jaw_clench_LR',jaws_clench_LR'];
+% 
+% counts(1:3) = 0;
+% dukes(1:3) = 0;
+% barons(1:3) = 0;
+% earls(1:3) = 0;
+% kings(1:3) = 0;
+% queens(1:3) = 0;
+% for i = 1:3
+%     for j = 1:LOOP_NUM
+%         if(jaw_out(j) == i)
+%             dukes(i) = dukes(i) + princes(j,4-i);
+%             counts(i) = counts(i) +1;
+%         else
+%             barons(i) = barons(i) + princes(j,4-i);
+%             earls(i) = earls(i) +1;
+%         end
+%     end
+%     kings(i) = dukes(i) / counts(i);
+%     queens(i) = barons(i) / earls(i);
+% end   
 
 %% post run looking at things + training - Mu Suppression
 
 mu_R_L_ratio = 1./mu_L_R_ratio;
-data = [mu_left_power', mu_right_power', mu_L_R_ratio',mu_R_L_ratio'];
+data_mu = [mu_left_power', mu_right_power', mu_L_R_ratio',mu_R_L_ratio',mu_corr',mu_cov'];
+
+% training for left hand
+training_data_l_mu = data_mu(:,1:6);
+training_target_l = left_hand_move';
+[B_l_mu, dev_l_mu] = mnrfit(training_data_l_mu,training_target_l);
+%B_l = [1.72752071462896;-0.000183311588519734;0.000420439487852312;2.81944522671809];
+for i=1:LOOP_NUM
+    left_hand_move_LR(i) = 2-1/(1+exp(-dot(B_l_mu,[1 training_data_l_mu(i,1:6)])));
+end
+
+% training for right hand
+training_data_r_mu = data_mu(:,1:6);
+training_target_r = right_hand_move';
+[B_r_mu, dev_r_mu] = mnrfit(training_data_r_mu,training_target_r);
+%B_r = [-1.67886498423685;-0.000145234887899718;0.000398581147507900;-5.52644710028560e-05;4.00452165517145];
+for i=1:LOOP_NUM
+    right_hand_move_LR(i) = 2-1/(1+exp(-dot(B_r_mu,[1 training_data_r_mu(i,1:6)])));
+end
 
 
-mu_cell_data(1,1:5) = {'','Left Power','Right Power','L/R','R/L'};
+data_mu = [data_mu, move_out',left_hand_move_LR',right_hand_move_LR'];
+
+mu_cell_data(1,1:10) = {'','Left Power','Right Power','L/R','R/L','Corr', 'Cov','Actual Output','Left Guess','Right Guess'};
 mu_cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
-mu_cell_data(2:LOOP_NUM+1,2:5) = num2cell(data);
+mu_cell_data(2:LOOP_NUM+1,2:10) = num2cell(data_mu);
 
-figure;
-subplot(4,1,1)
-plot(mu_right_power);
-subplot(4,1,2);
-plot(mu_left_power);
-subplot(4,1,3);
-plot(mu_L_R_ratio);
-subplot(4,1,4);
-plot(mu_R_L_ratio);
+princes = [right_hand_move_LR',left_hand_move_LR'];
 
+pleb= 2;
+counts(1:pleb) = 0;
+dukes(1:pleb) = 0;
+barons(1:pleb) = 0;
+earls(1:pleb) = 0;
+kings(1:pleb) = 0;
+queens(1:pleb) = 0;
+for i = 1:pleb
+    for j = 1:LOOP_NUM
+        if(move_out(j) == i)
+            dukes(i) = dukes(i) + princes(j,i);
+            counts(i) = counts(i) +1;
+        else
+            barons(i) = barons(i) + princes(j,i);
+            earls(i) = earls(i) +1;
+        end
+    end
+    kings(i) = dukes(i) / counts(i);
+    queens(i) = barons(i) / earls(i);
+end  
 
 
 %% depricated - analysis - checking for blink w/ correlation - static data input sample 
