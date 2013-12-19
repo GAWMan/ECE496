@@ -1,0 +1,156 @@
+function run_CB(source,eventdata)
+    %do things
+        
+    %% Paramaters and variables
+    
+    params = guidata(source);
+    live = params.live;
+    params.run = 1;
+    guidata(source,params);
+    
+    SAMPLES = 128;%length(record);
+    f_run = figure('Visible','off',...
+            'Color',[0 0 1],...
+            'NumberTitle','off','Name','Running!',...
+            'Position',[360,250,500,300]);
+        
+    text_run = uicontrol(f_run,'Style','text',...
+                'FontSize',[20],...
+                'BackgroundColor',[0 0 1],...
+                'Visible','off',...
+                'Position',[50 100 400 130]); 
+            
+    % Ony load from record if not live
+    if(live == 0)      
+        [hdr, record] = edfread('Ryan-jawmov1-28.11.13.22.01.35.edf');
+    
+    %% make sure training was successful first
+    if(params.trained == 0)
+        set(f_run,'Visible','on');
+        set(text_run,'Visible','on','String','Please run the training program first');
+        pause(2.5);
+        set(f_run,'Visible','off');
+        return;
+    end
+    %% main loop
+    count = 1;
+    while(1)
+    count = count +1;
+    
+    %% initialize data, changes whether live or not
+    if(live == 1)
+        %run live
+        set(f_run,'Visible','on');
+        
+        % get samples from live stream
+        simOut = sim('simulinkcode.slx');
+        sample = simout(:,2:15);   
+    else  
+        %run off sample
+        sample = record(3:16,(SAMPLES*(count-1))+1:(SAMPLES*(count)))';
+        if(count == 40)
+            break;
+        end
+    end
+        
+    %% Analysis stuff - calculate 3 needed values for mnrfit
+
+    %determines if the subject is clenching their jaw
+    %inputs: LOOP_NUM, sample
+    % *the variable sample needs to have 128 samples exactly*
+    %outputs: jaws_clenched
+
+    %first thing that has to be done is some filtering
+    %take frequencies above 32hz, when you clench your jaw it's high frequency
+    %and high power.
+    jaw_power = 0;
+    k = 0;
+    jaw_power_sum = 0;
+
+    for j = [1,2,3,4,11,12,13,14];
+        %instead of using 1,2,3,4,11,12,13,14 it now goes 1-8
+        k = k+1; 
+
+        F(k,:) = fft(sample(:,j));
+        jaw_power(k) = 0;
+
+        %selects frequencies from 32-48 Hz
+        for i = 33:49;
+            jaw_power(k) = jaw_power(k)+ abs(F(k,i))^2;
+        end
+
+        %normalize for the range of frequencies being sampled, in this case
+        %looking at 16 frequencies
+        jaw_power(k) = jaw_power(k)/16;
+        jaw_power_sum = jaw_power_sum + jaw_power(k)/8;
+    end
+
+    %determine powers in the right and left jaws as well as the ratio between
+    %them
+    left_jaw_power = 0;
+    right_jaw_power = 0;
+    L_R_jaw_power = 0;
+    R_L_jaw_power = 0;
+    for j = 1:4
+        left_jaw_power = left_jaw_power + jaw_power(j)/4;
+        right_jaw_power = right_jaw_power + jaw_power(j+4)/4;
+    end
+    L_R_jaw_power = left_jaw_power/right_jaw_power;
+    R_L_jaw_power = 1/L_R_jaw_power;
+    
+    %% use MNRfit and values found from training data to check what the user did
+    params = guidata(source);
+    data = [jaw_power_sum, L_R_jaw_power, R_L_jaw_power];
+    
+    B_l = params.B_jaw_left;
+    left_jaw_clench_LR = 2-1/(1+exp(-dot(B_l,[1 data])));
+    
+    B_r = params.B_jaw_right;
+    right_jaw_clench_LR = 2-1/(1+exp(-dot(B_r,[1 data])));
+    
+    B_b = params.B_jaw_both;
+    jaws_clench_LR = 2-1/(1+exp(-dot(B_b,[1 data])));
+  
+    
+    %guess what happened
+    if(left_jaw_clench_LR > 1.8)
+        guess(count) = 3;
+    elseif(right_jaw_clench_LR > 1.8)
+        guess(count) = 2;
+    elseif(jaws_clench_LR > 1.8)
+        guess(count) = 1;
+    else
+        guess(count) = 0;
+    end
+        
+    %% if live, display guess, otherwise add data, more data!
+    params.guess = guess;
+    guidata(source,params);
+    
+    if(live == 1)
+        set(text_run,'Visible','off');
+
+        if (guess(count) == 1)
+            set(text_run,'Visible','on','String','Almighty Mechatron thinks you are clenching both jaws.');
+        elseif (guess(count) == 2)
+            set(text_run,'Visible','on','String','Almighty Mechatron thinks you are clenching your right jaw.');
+        elseif (guess(count) == 3)
+            set(text_run,'Visible','on','String','Almighty Mechatron thinks you are clenching your left jaw.');
+        end
+        
+    end
+    
+    %% code to break out of loop
+    drawnow;
+    params = guidata(source);
+    if(params.run == 0)
+        break;    
+    end
+    
+    end
+    
+    set(f_run,'Visible','off');
+    
+    
+       
+end
