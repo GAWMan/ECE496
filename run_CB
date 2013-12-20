@@ -23,15 +23,21 @@ function run_CB(source,eventdata)
     % Ony load from record if not live
     if(live == 0)      
         [hdr, record] = edfread('Ryan-jawmov1-28.11.13.22.01.35.edf');
-    
+    end
+   
     %% make sure training was successful first
-    if(params.trained == 0)
+    for i = 1:3
+        trained(i) = max(abs(params.B(i,:)));
+    end
+    
+    if(min(trained) == 0)
         set(f_run,'Visible','on');
         set(text_run,'Visible','on','String','Please run the training program first');
         pause(2.5);
         set(f_run,'Visible','off');
         return;
     end
+    
     %% main loop
     count = 1;
     while(1)
@@ -102,14 +108,15 @@ function run_CB(source,eventdata)
     params = guidata(source);
     data = [jaw_power_sum, L_R_jaw_power, R_L_jaw_power];
     
-    B_l = params.B_jaw_left;
-    left_jaw_clench_LR = 2-1/(1+exp(-dot(B_l,[1 data])));
+    B_b = params.B(1,:);
+    jaws_clench_LR = 2-1/(1+exp(-dot(B_b,[1 data])));
     
-    B_r = params.B_jaw_right;
+    B_r = params.B(3,:);
     right_jaw_clench_LR = 2-1/(1+exp(-dot(B_r,[1 data])));
     
-    B_b = params.B_jaw_both;
-    jaws_clench_LR = 2-1/(1+exp(-dot(B_b,[1 data])));
+    B_l = params.B(3,:);
+    left_jaw_clench_LR = 2-1/(1+exp(-dot(B_l,[1 data])));
+    
   
     
     %guess what happened
@@ -150,7 +157,5 @@ function run_CB(source,eventdata)
     end
     
     set(f_run,'Visible','off');
-    
-    
-       
+           
 end
