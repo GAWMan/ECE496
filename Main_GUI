@@ -12,31 +12,36 @@ f = figure('Visible','off','Position',[360,750,500,300]);
 % Construct the components.
 
 %% paramaters to be used, so, so many parameters
-params.B_jaw_left = [0,0,0,0,0];
-params.B_jaw_right = [0,0,0,0,0];
-params.B_jaw_both = [0,0,0,0,0];
+params.B = [0,0,0,0;0,0,0,0;0,0,0,0;];
 params.data = {0};
 params.guess = [0];
 params.run = 0;
-params.live = 1;
+params.live = 0;
 params.results = 0;
-params.trained = 0;
 
 
 %% make the gui pretty
 
 guidata(f,params);
 
-train_jaw    = uicontrol('Style','pushbutton','Callback',{@train_CB},...
-             'String','Train Jaw','Position',[315,220,70,25]);
-  
+train_general    = uicontrol('Style','pushbutton','Callback',{@train_CB,0},...
+             'String','General Training','Position',[225,220,90,40]);
+
+train_jaw_both    = uicontrol('Style','pushbutton','Callback',{@train_CB,1},...
+             'String','Train Both Jaws','Position',[315,220,90,40]);
+         
+train_jaw_right    = uicontrol('Style','pushbutton','Callback',{@train_CB,2},...
+             'String','Train Right Jaw','Position',[315,180,90,40]);
+         
+train_jaw_left    = uicontrol('Style','pushbutton','Callback',{@train_CB,3},...
+             'String','Train Left Jaw','Position',[315,140,90,40]);  
          
 run  = uicontrol('Style','pushbutton','Callback',{@run_CB},...
-             'String','Run','Position',[315,180,70,25]);
+             'String','Run','Position',[315,100,90,40]);
          
          
 stop  = uicontrol('Style','pushbutton','Callback',{@stop_CB},...
-             'String','Stop','Position',[315,140,70,25]);
+             'String','Stop','Position',[315,60,90,40]);
          
 set(f,'Visible','on')
 
