@@ -1,4 +1,11 @@
-function train_CB(source,eventdata)
+function train_CB(source,eventdata,target)
+
+target
+%target indicates what is currently being trained
+% 0 indicates everything
+% 1 indicates both jaws
+% 2 indicates right jaw
+% 3 indicates left jaw
  
 %% Paramaters and variables used
 params = guidata(source);
@@ -18,26 +25,39 @@ text_train = uicontrol(f_train,'Style','text',...
 %only load hdr if not live
 if(live == 0)
     [hdr, record] = edfread('Ryan-jawmov1-28.11.13.22.01.35.edf');
+end
+
+[hdr, record] = edfread('Ryan-jawmov1-28.11.13.22.01.35.edf');
 
 %% this is the pattern followed by the data
-train_data_jaw = [0,0,3,3,0,0,2,2,0,0,1,1,0,0];
-for i = 1:length(train_data_jaw)
+
+if (target == 0 || live == 0)
+% use real long string, taken from output of record
+train_data = [0,0,0,0,0,0,3,3,3,3,3,3,3,0,0,0,0,0,2,2,2,2,2,2,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,3,3,3,3,3,3,0,0,0,0,0,2,2,2,2,2,2,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,3,3,3,3,3,3,3,3,0,0,0,0,2,2,2,2,2,2,2,2,0,0,0,1,1,1,1,1,1,1,0,0,0,0,3,3,3,3,3,3,3,0,0,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3];
+elseif(target == 1)
+    train_data = [0 0 0 1 1 1 0 0 0 1 1 1 0 0 0 1 1 1];
+elseif(target == 2)
+    train_data = [0 0 0 2 2 2 0 0 0 2 2 2 0 0 0 2 2 2];
+elseif(target == 3)
+    train_data = [0 0 0 3 3 3 0 0 0 3 3 3 0 0 0 3 3 3];
+end
+    
+
+for i = 1:length(train_data)
 training_target_l(i) = 1;
 training_target_r(i) = 1;
 training_target_b(i) = 1;
-    if (train_data_jaw(i) == 1)
+    if (train_data(i) == 1)
         training_target_b(i) = 2;
-    elseif (train_data_jaw(i) == 2)
+    elseif (train_data(i) == 2)
         training_target_r(i) = 2;
-    elseif (train_data_jaw(i) == 3)
+    elseif (train_data(i) == 3)
         training_target_l(i) = 2;
     end
 end
 
-
-
 %% main loop
-for count = 1:length(train_data_jaw)
+for count = 1:length(train_data)
 LOOP_NUM = count;
         
 %% initialize data, changes whether live or not
@@ -49,23 +69,25 @@ if(live == 1)
     set(text_train,'Visible','off');
 
     
-    if (train_data_jaw(count) == 1)
+    if (train_data(count) == 1)
         set(text_train,'Visible','on','String','Please clench both jaws now');
-    elseif (train_data_jaw(count) == 2)
+    elseif (train_data(count) == 2)
         set(text_train,'Visible','on','String','Please clench your right jaw now');
-    elseif (train_data_jaw(count) == 3)
+    elseif (train_data(count) == 3)
         set(text_train,'Visible','on','String','Please clench your left jaw now');
     end
     
     % get samples from live stream
-    simOut = sim('simulinkcode.slx');
-    sample = simout(:,2:15);
+%     simOut = sim('simulinkcode.slx');
+%     sample = simout(:,2:15);
+    sample = record(3:16,(SAMPLES*(count-1))+1:(SAMPLES*(count)))';
+    pause(0.025);
+    
     
 else  
     %run off sample
     sample = record(3:16,(SAMPLES*(count-1))+1:(SAMPLES*(count)))';
 end
-
 
 %% analysis - jaw state - cannot be in a function, we need too many variables
 
@@ -111,43 +133,48 @@ for j = 1:4
 end
 L_R_jaw_power(LOOP_NUM) = left_jaw_power(LOOP_NUM)/right_jaw_power(LOOP_NUM);
 R_L_jaw_power(LOOP_NUM) = 1/L_R_jaw_power(LOOP_NUM);
-
    
 end
 
-
 %% Train the jaw clench and find the B's
 
-data = [jaw_power_sum', L_R_jaw_power', R_L_jaw_power',train_data_jaw'];
+data = [jaw_power_sum', L_R_jaw_power', R_L_jaw_power',train_data'];
 
-% training for left
-training_data_l = data(:,[1:3]);
-[B_l, dev_l] = mnrfit(training_data_l,training_target_l);
-for i=1:LOOP_NUM
-    left_jaw_clench_LR(i) = 2-1/(1+exp(-dot(B_l,[1 training_data_l(i,1:3)])));
+output = [1:3,1:length(train_data)];
+
+training_data_jaw = data(:,[1:3]);
+
+if(target == 1 || target == 0)
+    % training for both
+    B(1,:) = mnrfit(training_data_jaw,training_target_b);
+    for i=1:LOOP_NUM
+        output(1,i) = 2-1/(1+exp(-dot(B(1,:),[1 training_data_jaw(i,1:3)])));
+    end
 end
 
-% training for right
-training_data_r = data(:,[1:3]);
-[B_r, dev_r]  = mnrfit(training_data_r,training_target_r);
-for i=1:LOOP_NUM
-    right_jaw_clench_LR(i) = 2-1/(1+exp(-dot(B_r,[1 training_data_r(i,1:3)])));
+if(target == 2 || target == 0)
+    % training for right
+    training_data_r = data(:,[1:3]);
+    [B(2,:), dev_r]  = mnrfit(training_data_jaw,training_target_r);
+    for i=1:LOOP_NUM
+        output(2,i) = 2-1/(1+exp(-dot(B(2,:),[1 training_data_jaw(i,1:3)])));
+    end
 end
 
-% training for both
-training_data_b = data(:,[1:3]);
-B_b = mnrfit(training_data_b,training_target_b);
-for i=1:LOOP_NUM
-    jaws_clench_LR(i) = 2-1/(1+exp(-dot(B_b,[1 training_data_b(i,1:3)])));
+if(target == 3 || target == 0)
+    % training for left
+    training_data_l = data(:,[1:3]);
+    [B(3,:), dev_l] = mnrfit(training_data_jaw,training_target_l);
+    for i=1:LOOP_NUM
+        output(3,i) = 2-1/(1+exp(-dot(B(3,:),[1 training_data_jaw(i,1:3)])));
+    end
 end
 
 %% depricated - used to look at the data
 
-data = [data,left_jaw_clench_LR',right_jaw_clench_LR',jaws_clench_LR'];
-
-jaw_cell_data(1,1:8) = {'','Sum','L/R','R/L','Output','Left Guess','Right Guess','Both'};
+jaw_cell_data(1,1:5) = {'','Sum','L/R','R/L','Output'};
 jaw_cell_data(2:LOOP_NUM+1,1) = num2cell(1:LOOP_NUM);
-jaw_cell_data(2:LOOP_NUM+1,2:8) = num2cell(data);
+jaw_cell_data(2:LOOP_NUM+1,2:5) = num2cell(data);
 
 params = guidata(source);
 params.data = jaw_cell_data;
@@ -158,24 +185,35 @@ guidata(source,params);
 % lessons in british royalty
 % the kings are the average output of the Logistic Regression when it is
 % supposed to be 2. The closer to 2 the better!
-princes = [left_jaw_clench_LR',right_jaw_clench_LR',jaws_clench_LR'];
-fail = 0;
+
 counts(1:3) = 0;
 dukes(1:3) = 0;
 kings(1:3) = 0;
-for i = 1:3
+
+temp = target;
+if(target == 0)
+    temp = 1:3;
+end
+
+for i = temp
     for j = 1:LOOP_NUM
-        if(train_data_jaw(j) == i)
-            dukes(i) = dukes(i) + princes(j,4-i);
+        if(train_data(j) == i)
+            dukes(i) = dukes(i) + output(i,j);
             counts(i) = counts(i) +1;
         end
     end
     kings(i) = dukes(i) / counts(i);
-    if(kings(i) < 1.7)
-        fail = 1;
-    end
 end 
 
+%check the accuracy
+fail = 0;
+for i = temp;
+    if(kings(i) < 1.5)
+        fail = 1;
+    end
+end
+
+% do some things depending on whether it failed or not
 params = guidata(source);
 if(fail == 1)
     % LR did not resolve to any degree of accuracy
@@ -183,17 +221,20 @@ if(fail == 1)
     set(text_train,'Visible','on',...
         'String','Linear Regression did not converge, please try training again.',...
         'BackgroundColor',[1 0 0]);
-    params.trained = 0;
 else
     % lr did resolve
     set(text_train,'Visible','on',...
         'String','Linear Regression converged, training complete!',...
         'BackgroundColor',[0 1 0]);
-    params.B_jaw_left = B_l;
-    params.B_jaw_right = B_r;
-    params.B_jaw_both = B_b;
     params.results = kings;
-    params.trained = 1;
+    if(target == 0)
+        for i = 1:3
+            params.B(i,:) = B(i,:);
+        end
+    else
+        params.B(target,:) = B(target,:);
+    end
+        
 end
 
 guidata(source,params);
@@ -204,7 +245,5 @@ if(live == 1)
     pause(2.5);
     set(f_train,'Visible','off');
 end
-  
-
 
 end
