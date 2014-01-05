@@ -1,0 +1,314 @@
+function train_MU(source,eventdata)
+
+%% Paramaters and variables used
+    params = guidata(source);
+    live = params.live;
+    SAMPLES = 128;%length(record);
+    f_train = figure('Visible','off',...
+                'Color',[0 0 1],...
+                'NumberTitle','off','Name','Training!',...
+                'Position',[200,200,500,300]);
+
+    text_train = uicontrol(f_train,'Style','text',...
+                    'FontSize',[25],...
+                    'BackgroundColor',[0 0 1],...
+                    'Visible','off',...
+                    'Position',[50 100 400 130]);
+    if(live==0)
+        fname = 'Ryan-mixmu-22.12.13.16.23.55.edf'
+        [hdr,eegdata] = edfread(fname);
+        meanmupowerFC5 = 0;
+        meanmupowerT7 = 0;
+        meanmupowerT8 = 0;
+        meanmupowerFC6 = 0;
+        for second=1:length(eegdata(6,:))/128;
+            if (second == 1)
+                begin = 1;
+                tend = SAMPLES;
+            else
+                begin =SAMPLES*(second-1) + 1;
+                tend = SAMPLES*second;
+            end
+            if tend >= (length(eegdata(6,:)))
+               break; 
+            end
+            %Marker for each second
+            marker(second,:) = max(eegdata(36,begin:tend));
+            
+            %Variances Across Significant Channels
+            varFC5(second,1)= var(eegdata(6,begin:tend));
+            varT7(second,1)= var(eegdata(7,begin:tend));
+            varT8(second,1)= var(eegdata(12,begin:tend));
+            varFC6(second,1)= var(eegdata(13,begin:tend));  
+            
+            %Correlation Coefficients
+            C = corrcoef(eegdata(6,begin:tend), eegdata(7,begin:tend));
+            sigmaFC5T7(second,2) = C(2,1);
+            C = corrcoef(eegdata(6,begin:tend), eegdata(12,begin:tend));
+            sigmaFC5T8(second,2) = C(2,1);
+            C = corrcoef(eegdata(6,begin:tend), eegdata(13,begin:tend));
+            sigmaFC5FC6(second,2) = C(2,1);
+            C = corrcoef(eegdata(7,begin:tend), eegdata(12,begin:tend));
+            sigmaT7T8(second,2) = C(2,1);
+            C = corrcoef(eegdata(7,begin:tend), eegdata(13,begin:tend));
+            sigmaT7FC6(second,2) = C(2,1);
+            C = corrcoef(eegdata(12,begin:tend), eegdata(13,begin:tend));
+            sigmaT8FC6(second,2) = C(2,1);
+            
+            %Mu Power calculated & normalized for six frequencies (Mu Band
+            %8-13 Hz
+            F6(second,:) = fft(eegdata(6,begin:tend),128);
+            mupowerFC5(second,1) = ((abs(F6(second,9))^2) + (abs(F6(second,10))^2) + (abs(F6(second,11))^2) + (abs(F6(second,12))^2) + (abs(F6(second,13))^2) + (abs(F6(second,14))^2))/6;
+            F7(second,:) = fft(eegdata(7,begin:tend),128);
+            mupowerT7(second,1) = ((abs(F7(second,9))^2) + (abs(F7(second,10))^2) + (abs(F7(second,11))^2) + (abs(F7(second,12))^2) + (abs(F7(second,13))^2) + (abs(F7(second,14))^2))/6;
+            F12(second,:) = fft(eegdata(12,begin:tend),128);
+            mupowerT8(second,1) = ((abs(F12(second,9))^2) + (abs(F12(second,10))^2) + (abs(F12(second,11))^2) + (abs(F12(second,12))^2) + (abs(F12(second,13))^2) + (abs(F12(second,14))^2))/6;
+            F13(second,:) = fft(eegdata(13,begin:tend),128);
+            mupowerFC6(second,1) = ((abs(F13(second,9))^2) + (abs(F13(second,10))^2) + (abs(F13(second,11))^2) + (abs(F13(second,12))^2) + (abs(F13(second,13))^2) + (abs(F13(second,14))^2))/6;
+        end
+        %Calculates average power on channels FC5, T7, T8, and FC6
+        for second = 1:length(mupowerFC5(:,1))
+                meanmupowerFC5= meanmupowerFC5 + ((mupowerFC5(second,1))/length(mupowerFC5(:,1)));
+                meanmupowerT7= meanmupowerT7 + ((mupowerT7(second,1))/length(mupowerFC5(:,1)));
+                meanmupowerT8= meanmupowerT8 + ((mupowerT8(second,1))/length(mupowerFC5(:,1)));
+                meanmupowerFC6=meanmupowerFC6 + ((mupowerFC6(second,1))/length(mupowerFC5(:,1)));
+        end
+        %Calculates the difference from the average power
+        for second = 1:length(mupowerFC5(:,1))
+            mupowerFC5(second, 2) = mupowerFC5(second,1) - meanmupowerFC5;
+            mupowerT7(second, 2) = mupowerT7(second,1) - meanmupowerT7; 
+            mupowerT8(second, 2) = mupowerT8(second,1) - meanmupowerT8; 
+            mupowerFC6(second, 2) = mupowerFC6(second,1) - meanmupowerFC6; 
+        end
+        
+        %%Training Commences from this point onward
+        %Marks when a movement occurs
+        for i=1:length(marker)
+            target_lhand(i) = 1;
+            target_rhand(i) = 1;
+            target_lfeet(i) = 1;
+            target_rfeet(i) = 1;
+                if (marker(i)==1 || ((i~=1) && marker(i-1)==1));
+                    target_lhand(i)=2;
+                elseif (marker(i)==2 || ((i~=1) && marker(i-1)==2));
+                    target_rhand(i) = 2;
+                elseif (marker(i)==3 || ((i~=1) && marker(i-1)==3));
+                    target_lfeet(i) = 2;
+                elseif (marker(i)==4 || ((i~=1) && marker(i-1)==4));
+                    target_rfeet(i)= 2;
+                end
+        end
+        training_data = [mupowerFC5(:,2) mupowerT7(:,2) mupowerT8(:,2) mupowerFC6(:,2)  sigmaFC5T7(:,2) sigmaFC5T8(:,2) sigmaFC5FC6(:,2) sigmaT7T8(:,2) sigmaT7FC6(:,2) sigmaT8FC6(:,2) varFC5(:,1) varT7(:,1) varT8(:,1) varFC6(:,1) marker];
+        % Calculates Logistic Regression
+        B_left_arm = mnrfit(training_data(:,1:14),target_lhand);
+        B_right_arm = mnrfit(training_data(:,1:14),target_rhand);
+        B_lfeet = mnrfit(training_data(:,1:14),target_lfeet);
+        B_rfeet = mnrfit(training_data(:,1:14),target_rfeet);
+        for i=1:length(marker)
+            leftarm_LR(i)= 2-1/(1+exp(-dot(B_left_arm,[1 training_data(i,1:14)])));
+            rightarm_LR(i) = 2-1/(1+exp(-dot(B_right_arm,[1 training_data(i,1:14)])));
+            lfeet_LR(i) = 2-1/(1+exp(-dot(B_lfeet,[1 training_data(i,1:14)])));
+            rfeet_LR(i) = 2-1/(1+exp(-dot(B_rfeet,[1 training_data(i,1:14)])));
+        end
+        finalLR = [marker, leftarm_LR', rightarm_LR', lfeet_LR', rfeet_LR'];
+        
+        %Give the main GUI program the results of mudesync's Logistic Regression
+        for  i = length(marker)
+            mudesync_data(1,1:5) = {'Marker','Left Arm Guess','Right Arm Guess','Left Foot Guess','Right Foot Guess'};
+            mudesync_data(2:i+1,1:5) = num2cell(finalLR);
+        end
+        params = guidata(source);
+        params.mudata = mudesync_data;
+        guidata(source,params);
+        
+        %Check how successful the Logistic Regression is and if another
+        %training session is required
+        fail = 0;
+        counts(1:4) = 0;
+        sumofLRs(1:4) = 0;
+        normofsumofLRs(1:4) = 0;
+        for i = 1:4 %Number of choices to guess from
+            for j = 1:length(marker) %Number of 1 second intervals
+                if(marker(j) == i)
+                    sumofLRs(i) = sumofLRs(i) + finalLR(j,i);
+                    counts(i) = counts(i) + 1;
+                end
+            end
+            normofsumofLRs(i) = sumofLRs(i) / counts(i);
+            if(normofsumofLRs(i) < 1.5)
+                fail = 1;
+            end
+        end
+        
+        params = guidata(source);
+        params.muresults = normofsumofLRs;
+        if(fail == 1)
+            % LR did not resolve to any degree of accuracy
+            set(text_train,'Visible','on',...
+                'String','Mu Desynchronization Linear Regression did not converge, please try training again.',...
+                'BackgroundColor',[1 0 0]);
+            params.mutrained = 0;
+        else
+            % lr did resolve
+            set(text_train,'Visible','on',...
+                'String','Mu Desynchronizaion Linear Regression converged, training complete!',...
+                'BackgroundColor',[0 1 0]);
+            params.mutrained = 1;
+            params.B_left_arm = B_left_arm;
+            params.B_right_arm = B_right_arm;
+            params.B_lfeet = B_lfeet;
+            params.B_rfeet = B_rfeet;
+        end
+        guidata(source,params);
+    elseif(live==1)
+        marker = [0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,2,2,0,0,0,0,2,2,0,0,0,0,2,2,0,0,0,0,3,3,0,0,0,0,3,3,0,0,0,0,3,3,0,0,0,0,4,4,0,0,0,0,4,4,0,0,0,0,4,4,0,0,0,0];
+        %Marks when a movement occurs
+        for i=1:length(marker)
+            target_lhand(i) = 1;
+            target_rhand(i) = 1;
+            target_lfeet(i) = 1;
+            target_rfeet(i) = 1;
+                if (marker(i)==1 || ((i~=1) && marker(i-1)==1));
+                    target_lhand(i)=2;
+                elseif (marker(i)==2 || ((i~=1) && marker(i-1)==2));
+                    target_rhand(i) = 2;
+                elseif (marker(i)==3 || ((i~=1) && marker(i-1)==3));
+                    target_lfeet(i) = 2;
+                elseif (marker(i)==4 || ((i~=1) && marker(i-1)==4));
+                    target_rfeet(i)= 2;
+                end
+        end
+        %Main Loop to Retrieve Data and Calculate
+        for second = 1:length(marker)
+            if (second == 1)
+                begin = 1;
+                tend = SAMPLES;
+            else
+                begin =SAMPLES*(second-1) + 1;
+                tend = SAMPLES*second;
+            end
+            set(f_train,'Visible','on');
+            set(text_train,'Visible','off');
+            if (marker(second) == 1)
+                set(text_train,'Visible','on','String','Please flex your left arm');
+            elseif (marker(second) == 2)
+                set(text_train,'Visible','on','String','Please flex your right arm');
+            elseif (marker(second) == 3)
+                set(text_train,'Visible','on','String','Please flex your left leg');
+            elseif (marker(second) == 4)
+                set(text_train,'Visible','on','String','Please flex your right leg');
+            end
+            % get samples from live stream
+            simOut = sim('simulinkcode.slx');
+            sample = simout(begin:tend,2:15);
+            
+            %Variances Across Significant Channels
+            varFC5(second,1)= var(eegdata(6,begin:tend));
+            varT7(second,1)= var(eegdata(7,begin:tend));
+            varT8(second,1)= var(eegdata(12,begin:tend));
+            varFC6(second,1)= var(eegdata(13,begin:tend));  
+            
+            %Correlation Coefficients
+            C = corrcoef(eegdata(6,begin:tend), eegdata(7,begin:tend));
+            sigmaFC5T7(second,2) = C(2,1);
+            C = corrcoef(eegdata(6,begin:tend), eegdata(12,begin:tend));
+            sigmaFC5T8(second,2) = C(2,1);
+            C = corrcoef(eegdata(6,begin:tend), eegdata(13,begin:tend));
+            sigmaFC5FC6(second,2) = C(2,1);
+            C = corrcoef(eegdata(7,begin:tend), eegdata(12,begin:tend));
+            sigmaT7T8(second,2) = C(2,1);
+            C = corrcoef(eegdata(7,begin:tend), eegdata(13,begin:tend));
+            sigmaT7FC6(second,2) = C(2,1);
+            C = corrcoef(eegdata(12,begin:tend), eegdata(13,begin:tend));
+            sigmaT8FC6(second,2) = C(2,1);
+            
+            %Mu Power calculated & normalized for six frequencies (Mu Band
+            %8-13 Hz
+            F6(second,:) = fft(eegdata(6,begin:tend),128);
+            mupowerFC5(second,1) = ((abs(F6(second,9))^2) + (abs(F6(second,10))^2) + (abs(F6(second,11))^2) + (abs(F6(second,12))^2) + (abs(F6(second,13))^2) + (abs(F6(second,14))^2))/6;
+            F7(second,:) = fft(eegdata(7,begin:tend),128);
+            mupowerT7(second,1) = ((abs(F7(second,9))^2) + (abs(F7(second,10))^2) + (abs(F7(second,11))^2) + (abs(F7(second,12))^2) + (abs(F7(second,13))^2) + (abs(F7(second,14))^2))/6;
+            F12(second,:) = fft(eegdata(12,begin:tend),128);
+            mupowerT8(second,1) = ((abs(F12(second,9))^2) + (abs(F12(second,10))^2) + (abs(F12(second,11))^2) + (abs(F12(second,12))^2) + (abs(F12(second,13))^2) + (abs(F12(second,14))^2))/6;
+            F13(second,:) = fft(eegdata(13,begin:tend),128);
+            mupowerFC6(second,1) = ((abs(F13(second,9))^2) + (abs(F13(second,10))^2) + (abs(F13(second,11))^2) + (abs(F13(second,12))^2) + (abs(F13(second,13))^2) + (abs(F13(second,14))^2))/6;
+        end
+         %Calculates average power on channels FC5, T7, T8, and FC6
+        for second = 1:length(mupowerFC5(:,1))
+                meanmupowerFC5= meanmupowerFC5 + ((mupowerFC5(second,1))/length(mupowerFC5(:,1)));
+                meanmupowerT7= meanmupowerT7 + ((mupowerT7(second,1))/length(mupowerFC5(:,1)));
+                meanmupowerT8= meanmupowerT8 + ((mupowerT8(second,1))/length(mupowerFC5(:,1)));
+                meanmupowerFC6=meanmupowerFC6 + ((mupowerFC6(second,1))/length(mupowerFC5(:,1)));
+        end
+        %Calculates the difference from the average power
+        for second = 1:length(mupowerFC5(:,1))
+            mupowerFC5(second, 2) = mupowerFC5(second,1) - meanmupowerFC5;
+            mupowerT7(second, 2) = mupowerT7(second,1) - meanmupowerT7; 
+            mupowerT8(second, 2) = mupowerT8(second,1) - meanmupowerT8; 
+            mupowerFC6(second, 2) = mupowerFC6(second,1) - meanmupowerFC6; 
+        end
+        
+        %%Training Commences
+        training_data = [mupowerFC5(:,2) mupowerT7(:,2) mupowerT8(:,2) mupowerFC6(:,2)  sigmaFC5T7(:,2) sigmaFC5T8(:,2) sigmaFC5FC6(:,2) sigmaT7T8(:,2) sigmaT7FC6(:,2) sigmaT8FC6(:,2) varFC5(:,1) varT7(:,1) varT8(:,1) varFC6(:,1) marker];
+        % Calculates Logistic Regression
+        B_left_arm = mnrfit(training_data(:,1:14),target_lhand);
+        B_right_arm = mnrfit(training_data(:,1:14),target_rhand);
+        B_lfeet = mnrfit(training_data(:,1:14),target_lfeet);
+        B_rfeet = mnrfit(training_data(:,1:14),target_rfeet);
+        for i=1:length(marker)
+            leftarm_LR(i)= 2-1/(1+exp(-dot(B_left_arm,[1 training_data(i,1:14)])));
+            rightarm_LR(i) = 2-1/(1+exp(-dot(B_right_arm,[1 training_data(i,1:14)])));
+            lfeet_LR(i) = 2-1/(1+exp(-dot(B_lfeet,[1 training_data(i,1:14)])));
+            rfeet_LR(i) = 2-1/(1+exp(-dot(B_rfeet,[1 training_data(i,1:14)])));
+        end
+        finalLR = [marker, leftarm_LR', rightarm_LR', lfeet_LR', rfeet_LR'];
+        
+        %Give the main GUI program the results of mudesync's Logistic Regression
+        for  i = length(marker)
+            mudesync_data(1,1:5) = {'Marker','Left Arm Guess','Right Arm Guess','Left Foot Guess','Right Foot Guess'};
+            mudesync_data(2:i+1,1:5) = num2cell(finalLR);
+        end
+        params = guidata(source);
+        params.mudata = mudesync_data;
+        guidata(source,params);
+        
+        %Check how successful the Logistic Regression is and if another
+        %training session is required
+        fail = 0;
+        counts(1:4) = 0;
+        sumofLRs(1:4) = 0;
+        normofsumofLRs(1:4) = 0;
+        for i = 1:4 %Number of choices to guess from
+            for j = 1:length(marker) %Number of 1 second intervals
+                if(marker(j) == i)
+                    sumofLRs(i) = sumofLRs(i) + finalLR(j,i);
+                    counts(i) = counts(i) + 1;
+                end
+            end
+            normofsumofLRs(i) = sumofLRs(i) / counts(i);
+            if(normofsumofLRs(i) < 1.5)
+                fail = 1;
+            end
+        end
+        
+        params = guidata(source);
+        params.muresults = normofsumofLRs;
+        if(fail == 1)
+            % LR did not resolve to any degree of accuracy
+            set(text_train,'Visible','on',...
+                'String','Mu Desynchronization Linear Regression did not converge, please try training again.',...
+                'BackgroundColor',[1 0 0]);
+            params.mutrained = 0;
+        else
+            % lr did resolve
+            set(text_train,'Visible','on',...
+                'String','Mu Desynchronizaion Linear Regression converged, training complete!',...
+                'BackgroundColor',[0 1 0]);
+            params.mutrained = 1;
+            params.B_left_arm = B_left_arm;
+            params.B_right_arm = B_right_arm;
+            params.B_lfeet = B_lfeet;
+            params.B_rfeet = B_rfeet;
+        end
+        guidata(source,params);
+end
