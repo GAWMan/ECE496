@@ -406,7 +406,7 @@ eegdata = record;
 % use FDAtool to generate a MATLAB script which implements a filter, much
 % easier than simulink. Filter the sample.
 
-    sample(:,:) = MAT_filter(sample(:,:));
+    sample(:,:) = mu_filter(sample(:,:));
  
 % calculate variances
 k = 0;
