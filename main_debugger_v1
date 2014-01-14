@@ -47,7 +47,8 @@ clear all
 [hdr, record4] = edfread('Ryan-rightfoot-22.12.13.16.18.14.edf');
 [hdr, record5] = edfread('Ryan-leftmu-22.12.13.16.12.03.edf');
 
-record = [record2 record3 record4 record5];
+record = [record1 record2 record3 record4 record5];
+%record = record1;
 
 
 SAMPLES = 128;%length(record);
@@ -399,19 +400,26 @@ sample = record(3:16,(SAMPLES*(counter)+1:(SAMPLES*(counter +1))))';
 
 count = LOOP_NUM;
 eegdata = record;
+
+
+
+% use FDAtool to generate a MATLAB script which implements a filter, much
+% easier than simulink. Filter the sample.
+
+    sample(:,:) = MAT_filter(sample(:,:));
  
 % calculate variances
-varFC5(count)= var(sample(:,4));
-varT7(count)= var(sample(:,5));
-varP7(count)= var(sample(:,6));
-varP8(count)= var(sample(:,9));   
-varT8(count)= var(sample(:,10));
-varFC6(count)= var(sample(:,11));     
+k = 0;
+for i = 1:14
+   k = k+1;
+   mu_var(k, count) = var(sample(:,i));
+end   
 
 % CALCULATE CORRELATION
+% use following instead of 1:14 for specific channels only i = [4 5 6 9 10 11]
 sigma_count = 0;
-for i = [4 5 6 9 10 11]
-    for j = [4 5 6 9 10 11]
+for i = 1:14
+    for j = 1:14
         if(i ~= j && j > i)
             sigma_count = sigma_count+1;
             C = corrcoef(sample(:,i), sample(:,j));
@@ -420,19 +428,18 @@ for i = [4 5 6 9 10 11]
     end
 end           
 
+
 % calculate powers
-F6(count,:) = fft(sample(:,4),128);
-mupowerFC5(count) = ((abs(F6(count,9))^2) + (abs(F6(count,10))^2) + (abs(F6(count,11))^2) + (abs(F6(count,12))^2) + (abs(F6(count,13))^2) + (abs(F6(count,14))^2))/6; 
+F_sample = fft(sample);
 
-F7(count,:) = fft(sample(:,5),128);
-mupowerT7(count) = ((abs(F7(count,9))^2) + (abs(F7(count,10))^2) + (abs(F7(count,11))^2) + (abs(F7(count,12))^2) + (abs(F7(count,13))^2) + (abs(F7(count,14))^2))/6;
-
-F12(count,:) = fft(sample(:,10),128);
-mupowerT8(count) = ((abs(F12(count,9))^2) + (abs(F12(count,10))^2) + (abs(F12(count,11))^2) + (abs(F12(count,12))^2) + (abs(F12(count,13))^2) + (abs(F12(count,14))^2))/6;
-
-F13(count,:) = fft(sample(:,11),128);
-mupowerFC6(count) = ((abs(F13(count,9))^2) + (abs(F13(count,10))^2) + (abs(F13(count,11))^2) + (abs(F13(count,12))^2) + (abs(F13(count,13))^2) + (abs(F13(count,14))^2))/6;           
-
+k = 0;
+for i = 1:14
+    k = k+1;
+    mu_pow(k,count) = 0;
+    for x = 1:64
+        mu_pow(k,count) = mu_pow(k,count) + (abs(F_sample(x,i))).^2;
+    end
+end
 
 % calculate where the markers are
 marker(count) = max(record(36,(SAMPLES*(counter)+1:(SAMPLES*(counter +1)))));
@@ -608,7 +615,7 @@ end
 
 %% post run looking at things + training - Mu Suppression
 
-data = [mupowerFC5' mupowerT7' mupowerT8' mupowerFC6' sigma(:,:)' varFC5' varT7' varT8' varFC6' varP7' varP8' marker'];
+data = [mu_pow' sigma' mu_var' marker'];
 
 for i=1:length(marker)
 target_left(i) = 1;
@@ -689,7 +696,7 @@ queens = abs(queens);
 
 
 for q = 1:4
-    success(q) = 1.2;
+    success(q) = 1.8;
 end
 mu_target = [leftarm_LR', rightarm_LR', lfeet_LR', rfeet_LR']';
 
