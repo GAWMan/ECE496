@@ -1,47 +1,48 @@
-% SIMPLE_GUI2 Select a data set from the pop-up menu, then
+% Select a data set from the pop-up menu, then
 % click one of the plot-type push buttons. Clicking the button
 % plots the selected data in the axes. 
 
 % Create the gui, fist one is called f
-
-
-f = figure('Visible','off','Position',[360,750,500,300]);
+f = figure('Visible','off','Position',[400,200,500,350]);
 
 
 %% Components
-% Construct the components.
-
-%% paramaters to be used, so, so many parameters
-params.B = [0,0,0,0;0,0,0,0;0,0,0,0;];
-params.data = {0};
-params.guess = [0];
+% Parameters
 params.run = 0;
-params.live = 0;
-params.results = 0;
+params.live = 1;
+params.stop = 0;
 
-
-%% make the gui pretty
+% Train Parameters
+params.trainedleftwink;
+params.trainedrightwink;
+params.trainedleftjaw;
+params.trainedrightjaw;
+params.trainedbothjaws;
 
 guidata(f,params);
 
-train_general    = uicontrol('Style','pushbutton','Callback',{@train_CB,0},...
-             'String','General Training','Position',[225,220,90,40]);
+train_jaw    = uicontrol('Style','pushbutton','Callback',{@train_CB},...
+             'String','Train Both Jaws','Position',[315,220,150,25]);
+         
+train_left_jaw    = uicontrol('Style','pushbutton','Callback',{@train_CB},...
+             'String','Train Left Jaw','Position',[315,180,150,25]);
 
-train_jaw_both    = uicontrol('Style','pushbutton','Callback',{@train_CB,1},...
-             'String','Train Both Jaws','Position',[315,220,90,40]);
+train_right_jaw    = uicontrol('Style','pushbutton','Callback',{@train_CB},...
+             'String','Train Right Jaw','Position',[315,140,150,25]);
          
-train_jaw_right    = uicontrol('Style','pushbutton','Callback',{@train_CB,2},...
-             'String','Train Right Jaw','Position',[315,180,90,40]);
+train_mudesync = uicontrol('Style','pushbutton','Callback',{@train_MU},...
+             'String','Train MuDesynchronization','Position',[75,220,150,25]);
          
-train_jaw_left    = uicontrol('Style','pushbutton','Callback',{@train_CB,3},...
-             'String','Train Left Jaw','Position',[315,140,90,40]);  
+train_leftwinking = uicontrol('Style','pushbutton','Callback',{@train_LEFTWINK},...
+             'String','Train Left Winking','Position',[75,180,150,25]);
          
-run  = uicontrol('Style','pushbutton','Callback',{@run_CB},...
-             'String','Run','Position',[315,100,90,40]);
-         
+train_rightwinking = uicontrol('Style','pushbutton','Callback',{@train_RIGHTWINK},...
+             'String','Train Right Winking','Position',[75,140,150,25]);
+%Replace rename run_WINK to run_CB once it includes everything                                                  
+run  = uicontrol('Style','pushbutton','Callback',{@run_WINK},...
+             'String','Run','Position',[315,100,150,25]);
          
 stop  = uicontrol('Style','pushbutton','Callback',{@stop_CB},...
-             'String','Stop','Position',[315,60,90,40]);
+             'String','Stop','Position',[315,60,150,25]);
          
 set(f,'Visible','on')
-
