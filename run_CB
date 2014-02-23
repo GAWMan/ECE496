@@ -1,161 +1,220 @@
-function run_CB(source,eventdata)
-    %do things
-        
-    %% Paramaters and variables
+function run_CB(source, eventdata)
     
+    %Set & retrieve parameters from the GUI
     params = guidata(source);
-    live = params.live;
+    trainedleftwink = params.trainedleftwink;
+    trainedrightwink = params.trainedrightwink;
+    trainedleftjaw = params.trainedleftjaw;
+    trainedrightjaw = params.trainedrightjaw;
+    trainedbothjaws = params.trainedbothjaws;
     params.run = 1;
+    run = 1;
     guidata(source,params);
     
-    SAMPLES = 128;%length(record);
+    %Display Formatting
     f_run = figure('Visible','off',...
             'Color',[0 0 1],...
             'NumberTitle','off','Name','Running!',...
-            'Position',[360,250,500,300]);
+            'Position',[200,200,500,300]);
         
     text_run = uicontrol(f_run,'Style','text',...
                 'FontSize',[20],...
                 'BackgroundColor',[0 0 1],...
                 'Visible','off',...
-                'Position',[50 100 400 130]); 
-            
-    % Ony load from record if not live
-    if(live == 0)      
-        [hdr, record] = edfread('Ryan-jawmov1-28.11.13.22.01.35.edf');
-    end
-   
-    %% make sure training was successful first
-    for i = 1:3
-        trained(i) = max(abs(params.B(i,:)));
-    end
-    
-    if(min(trained) == 0)
+                'Position',[50 100 400 130]);
+     
+    %Check if atleast one the parameters are trained so atleast one control
+    %signal can be sent
+    if(trainedleftwink == 0 && trainedrightwink == 0 && trainedleftjaw == 0 && trainedrightjaw == 0 && trainedbothjaws == 0)
         set(f_run,'Visible','on');
-        set(text_run,'Visible','on','String','Please run the training program first');
+        set(text_run,'Visible','on','String','Please run one of the training programs first');
         pause(2.5);
         set(f_run,'Visible','off');
         return;
     end
     
-    %% main loop
-    count = 1;
-    while(1)
-    count = count +1;
+    %Load training parameters into the workspace
+    if(trainedleftwink == 1)
+        load('leftwinkparams.mat');
+    end
+    if(trainedrightwink ==1)
+        load('rightwinkparams.mat');
+    end
+    if(trainedleftjaw ==1)
+        load('leftjawparams.mat');
+    end
+    if(trainedrightwink ==1)
+        load('rightjawparams.mat');
+    end
+    if(trainedrightwink ==1)
+        load('bothjawparams.mat');
+    end
     
-    %% initialize data, changes whether live or not
-    if(live == 1)
-        %run live
-        set(f_run,'Visible','on');
+    %Constants
+    SAMPLINGRATE = 128;
+    CHANNELS = 14;
+    wink_channel_set = [2,13];
+    counter = 1;
+    
+    %Hardware Constants
+    a = EmotivEEG;
+    a.run;
+    while(run)
+        %Retrieve most recent sample
+        sample(1:128,1:14) = a.data(1:128,4:17);
         
-        % get samples from live stream
-        simOut = sim('simulinkcode.slx');
-        sample = simout(:,2:15);   
-    else  
-        %run off sample
-        sample = record(3:16,(SAMPLES*(count-1))+1:(SAMPLES*(count)))';
-        if(count == 40)
-            break;
+        %Begin Wink Analysis%
+        if(trainedleftwink == 1 || trainedrightwink == 1)
+            %Calculate Variance, Power, Ratio of Power
+            k = 0;
+            for i = wink_channel_set;
+                %use k instead of loop_set, goes from 1-2
+                k = k+1;
+                %Calculate the variances in all the wink samples
+                wink_var(k) = var(sample(:,i));
+
+                %Fourier Transform of EEG data on specified channel
+                w_F(k,:) = fft(sample(:,i), SAMPLINGRATE);
+                w_F(k,1) = 0;
+
+                wink_power(k) = 0;
+
+                %Take power of frequencies across 10-20Hz
+                for j = 10:20;
+                    wink_power(k) = wink_power(k)+ abs(w_F(k,j))^2;
+                end
+
+                %Add up the values around the peak, ask Ryan if the 127 should
+                %change to 128, doesnt make a difference at all
+                wink_peak(k) = 0;
+                [Y,ind] = max(sample(:,i));
+                for q = 1:10
+                    wink_peak(k) = wink_peak(k)+ abs(sample(min(max((ind-3)+q,1),127),i));
+                end
+            end
+
+            %Calculating ratios of power
+            wink_p_ratio(1) = wink_power(1) / wink_power(2);
+            wink_p_ratio(2) = wink_power(2) / wink_power(1);
+            wink_peak_ratio(1) = wink_peak(2) / wink_peak(1);
+            %wink_peak_ratio(counter,2) = wink_peak(counter,1) / wink_peak(counter,2);
+
+            %Calculating ratios of variance
+            wink_v_ratio(1) = wink_var(1) / wink_var(2);
+            wink_v_ratio(2) = wink_var(2) / wink_var(1);
+
+            %Calculating correlation
+            sigma_count = 0;
+            for i = wink_channel_set
+                for j = wink_channel_set
+                    if(i ~= j && j > i)
+                        sigma_count = sigma_count+1;
+                        C = corrcoef(sample(:,i), sample(:,j));
+                        wink_sigma(sigma_count) = C(2,1);
+                    end
+                end
+            end
+        %End Wink Analysis
+        
+        %Begin Wink Prediction%
+            data = [wink_v_ratio,wink_p_ratio,wink_peak];
+            
+            %Used for calculating the length of the row vector in data
+            data_size = size(data);
+            data_param = data_size(2);
+          
+            %Simulate for Left Eye
+            if(trainedleftwink == 1)
+                %Simulate Logistic Regression Prediction
+                wink_left_LR = 2-1/(1+exp(-dot(w_B_l,[1 data(1,1:data_param)])));
+                %Simulate Artificial Neural Network Prediction
+                wink_left_ANN = sim(w_net_l,data(:,1:data_param)'); 
+                %Simulate Support Vector Machine Prediction
+                wink_left_SVM = svmclassify(w_SVM_l,data(:,1:data_param));
+                %Simulate K Nearest Neighbor Prediction
+                wink_left_KNN = predict(w_KNN_l,data(:,1:data_param));
+                %Simulate Linear Discriminant Analysis Prediction
+                wink_left_LDA = predict(w_LDA_l,data(:,1:data_param));
+                %Predictions for Training Networks seperated for each Eye 
+                w_learning_data_l = [wink_left_ANN' wink_left_LR' wink_left_SVM wink_left_KNN wink_left_LDA];
+                wink_left_ensemble = 2-1/(1+exp(-dot(w_B_l_inception,[1 w_learning_data_l(1,:)])));
+            end
+        
+            %Simulate for Right Eye
+            if(trainedrightwink == 1)
+                %Simulate Logistic Regression Prediction
+                wink_right_LR = 2-1/(1+exp(-dot(w_B_r,[1 data(1,1:data_param)])));
+                %Simulate Artificial Neural Network Prediction
+                wink_right_ANN = sim(w_net_r,data(:,1:data_param)'); 
+                %Simulate Support Vector Machine Prediction
+                wink_right_SVM = svmclassify(w_SVM_r,data(:,1:data_param));
+                %Simulate K Nearest Neighbor Prediction
+                wink_right_KNN = predict(w_KNN_r,data(:,1:data_param));
+                %Simulate Linear Discriminant Analysis Prediction
+                wink_right_LDA = predict(w_LDA_r,data(:,1:data_param));
+                %Predictions for Training Networks seperated for each Eye 
+                w_learning_data_r = [wink_right_ANN' wink_right_LR' wink_right_SVM wink_right_KNN wink_right_LDA];
+                wink_right_ensemble = 2-1/(1+exp(-dot(w_B_l_inception,[1 w_learning_data_r(1,:)])));
+            end
+            %A counter that keeps track of how many Training Machines out
+            %of SVM, KNN, and LDA believe it is correct
+            wink_council(1) = 0;
+            wink_council(2) = 0;
+                %Left Eye
+                if(trainedleftwink == 1)
+                    if(wink_left_SVM == 2)
+                        w_council(1) = w_council(1) +1;
+                    end
+                    if(wink_left_KNN == 2)
+                        w_council(1) = w_council(1) +1;
+                    end
+                    if(wink_left_LDA == 2)
+                        w_council(1) = w_council(1) +1;
+                    end
+                end
+                %Right Eye
+                if(trainedrightwink == 1)
+                    if(wink_right_SVM == 2)
+                        w_council(2) = w_council(2) +1;
+                    end
+                    if(wink_right_KNN == 2)
+                        w_council(2) = w_council(2) +1;
+                    end
+                    if(wink_right_LDA == 2)
+                        w_council(2) = w_council(2) +1;
+                    end
+                end
+
+            %Final Prediction
+            if(trainedleftwink == 1 && trainedrightwink == 0)
+                wink_right_LR = 0;
+                q = [1];
+            elseif(trainedrightwink == 1 && trainedleftwink == 0)
+                wink_left_LR = 0;
+                q = [2];
+            else
+                q = [1,2];
+            end
+            wink_target_meta = [wink_left_ensemble' wink_right_ensemble'];
+            wink_guess_ensemble = 0;
+            
+            %Q is channels
+            for i = q
+                if(wink_target_meta(1,i) > 1.2 || w_council(i) >= 1)
+                     wink_guess_ensemble = i;
+                end
+            end
+            
+            if(wink_guess_ensemble(i)
+                %Do some stuff with robotic arm
+            end
+        %End Wink Prediction%
         end
+        counter = counter + 1;
+        %At end of loop check whether it should be ran through the loop another time
+        params = guidata(source);
+        run = params.run;
+        guidata(source,params);
     end
-        
-    %% Analysis stuff - calculate 3 needed values for mnrfit
-
-    %determines if the subject is clenching their jaw
-    %inputs: LOOP_NUM, sample
-    % *the variable sample needs to have 128 samples exactly*
-    %outputs: jaws_clenched
-
-    %first thing that has to be done is some filtering
-    %take frequencies above 32hz, when you clench your jaw it's high frequency
-    %and high power.
-    jaw_power = 0;
-    k = 0;
-    jaw_power_sum = 0;
-
-    for j = [1,2,3,4,11,12,13,14];
-        %instead of using 1,2,3,4,11,12,13,14 it now goes 1-8
-        k = k+1; 
-
-        F(k,:) = fft(sample(:,j));
-        jaw_power(k) = 0;
-
-        %selects frequencies from 32-48 Hz
-        for i = 33:49;
-            jaw_power(k) = jaw_power(k)+ abs(F(k,i))^2;
-        end
-
-        %normalize for the range of frequencies being sampled, in this case
-        %looking at 16 frequencies
-        jaw_power(k) = jaw_power(k)/16;
-        jaw_power_sum = jaw_power_sum + jaw_power(k)/8;
-    end
-
-    %determine powers in the right and left jaws as well as the ratio between
-    %them
-    left_jaw_power = 0;
-    right_jaw_power = 0;
-    L_R_jaw_power = 0;
-    R_L_jaw_power = 0;
-    for j = 1:4
-        left_jaw_power = left_jaw_power + jaw_power(j)/4;
-        right_jaw_power = right_jaw_power + jaw_power(j+4)/4;
-    end
-    L_R_jaw_power = left_jaw_power/right_jaw_power;
-    R_L_jaw_power = 1/L_R_jaw_power;
-    
-    %% use MNRfit and values found from training data to check what the user did
-    params = guidata(source);
-    data = [jaw_power_sum, L_R_jaw_power, R_L_jaw_power];
-    
-    B_b = params.B(1,:);
-    jaws_clench_LR = 2-1/(1+exp(-dot(B_b,[1 data])));
-    
-    B_r = params.B(3,:);
-    right_jaw_clench_LR = 2-1/(1+exp(-dot(B_r,[1 data])));
-    
-    B_l = params.B(3,:);
-    left_jaw_clench_LR = 2-1/(1+exp(-dot(B_l,[1 data])));
-    
-  
-    
-    %guess what happened
-    if(left_jaw_clench_LR > 1.8)
-        guess(count) = 3;
-    elseif(right_jaw_clench_LR > 1.8)
-        guess(count) = 2;
-    elseif(jaws_clench_LR > 1.8)
-        guess(count) = 1;
-    else
-        guess(count) = 0;
-    end
-        
-    %% if live, display guess, otherwise add data, more data!
-    params.guess = guess;
-    guidata(source,params);
-    
-    if(live == 1)
-        set(text_run,'Visible','off');
-
-        if (guess(count) == 1)
-            set(text_run,'Visible','on','String','Almighty Mechatron thinks you are clenching both jaws.');
-        elseif (guess(count) == 2)
-            set(text_run,'Visible','on','String','Almighty Mechatron thinks you are clenching your right jaw.');
-        elseif (guess(count) == 3)
-            set(text_run,'Visible','on','String','Almighty Mechatron thinks you are clenching your left jaw.');
-        end
-        
-    end
-    
-    %% code to break out of loop
-    drawnow;
-    params = guidata(source);
-    if(params.run == 0)
-        break;    
-    end
-    
-    end
-    
-    set(f_run,'Visible','off');
-           
+    delete(a);
 end
