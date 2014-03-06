@@ -1,0 +1,192 @@
+function train_RIGHTWINK(source, eventdata)
+
+    %Retrieve parameters from the GUI to determine what type of training
+    params = guidata(source);
+    live = params.live;
+    
+    %Display formatting
+    f_train = figure('Visible','off',...
+                'Color',[0 0 1],...
+                'NumberTitle','off','Name','Training!',...
+                'Position',[200,200,500,300]);
+    text_train = uicontrol(f_train,'Style','text',...
+                    'FontSize',[25],...
+                    'BackgroundColor',[0 0 1],...
+                    'Visible','off',...
+                    'Position',[50 100 400 130])
+    %Constants
+    SAMPLINGRATE = 128;
+    CHANNELS = 14;
+
+    %Channels of Interest = F7 & F8
+    wink_channel_set = [2,13];
+    counter = 1;
+    limit = 0;
+    tstart = 0;
+    tfinish = 0;
+    
+    %Decide if live to determine how data is taken
+    if(live == 0)
+        %Load Training Data
+        [hdr, record1] = edfread('RyanWink-2Feb7-07.02.14.15.45.22.edf');
+        [hdr, record2] = edfread('RyanWink4Feb7.edf');
+        [hdr, record3] = edfread('WinkFeb9.edf');
+        [hdr, record4] = edfread('Wink2Feb9.edf');
+        record = [record1];
+        markers = record(36,:);
+    else
+        %Get Training Data Live
+        a = EmotivEEG;
+        a.Run;
+        
+        set(f_train,'Visible','on');
+        set(text_train,'Visible','off');
+        markers = [0,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0];
+    end 
+    if(live == 0)
+        limit = length(record); 
+        condition = (SAMPLINGRATE/2)*(counter) + 64;
+    else
+        limit = length(markers);
+        condition = 1;
+    end
+        while(condition <= limit)
+            tic;
+            if (live==0)
+                marker = max(markers(1,(((SAMPLINGRATE/2)*(counter-1))+1:(((SAMPLINGRATE/2)*(counter))+64))));
+                sample = record(3:16,(((SAMPLINGRATE/2)*(counter-1))+1:(((SAMPLINGRATE/2)*(counter))+64)))';
+            else
+                if (markers(counter) == 40)
+                set(text_train,'Visible','on','String','Please wink with your left eye now');
+                elseif (markers(counter) == 50)
+                    set(text_train,'Visible','on','String','Please wink with your right eye now');
+                else 
+                    set(text_train,'Visible','on','String','Please try to keep your eyes open');
+                end
+                marker = markers(counter);
+                record(1:128,1:14)= a.data(1:128,4:17);
+                sample = record; 
+            end
+            if (marker == 40)
+                wink_left(counter) = 2;
+                wink_right(counter) = 1;
+                wink_out(counter) = 1;
+            elseif (marker == 50)
+                wink_left(counter) = 1;
+                wink_right(counter) = 2;
+                wink_out(counter) = 2;
+            else
+                wink_left(counter) = 1;
+                wink_right(counter) = 1;
+                wink_out(counter) = 0;
+            end
+            %Calculate Variance, Power, Ratio of Power
+            k = 0;
+            for i = wink_channel_set;
+                %use k instead of loop_set, goes from 1-2
+                k = k+1;
+                %Calculate the variances in all the wink samples
+                wink_var(counter,k) = var(sample(:,i));
+
+                %Fourier Transform of EEG data on specified channel
+                w_F(k,:) = fft(sample(:,i), SAMPLINGRATE);
+                w_F(k,1) = 0;
+
+                wink_power(counter,k) = 0;
+
+                %Take power of frequencies across 10-20Hz
+                for j = 10:20;
+                    wink_power(counter,k) = wink_power(counter,k)+ abs(w_F(k,j))^2;
+                end
+
+                %Add up the values around the peak, ask Ryan if the 127 should
+                %change to 128, doesnt make a difference at all
+                wink_peak(counter,k) = 0;
+                [Y,ind] = max(sample(:,i));
+                for q = 1:10
+                    wink_peak(counter,k) = wink_peak(counter,k)+ abs(sample(min(max((ind-3)+q,1),127),i));
+                end
+            end
+
+            %Calculating ratios of power
+            wink_p_ratio(counter,1) = wink_power(counter,1) / wink_power(counter,2);
+            wink_p_ratio(counter,2) = wink_power(counter,2) / wink_power(counter,1);
+            wink_peak_ratio(counter,1) = wink_peak(counter,2) / wink_peak(counter,1);
+            %wink_peak_ratio(counter,2) = wink_peak(counter,1) / wink_peak(counter,2);
+
+            %Calculating ratios of variance
+            wink_v_ratio(counter,1) = wink_var(counter,1) / wink_var(counter,2);
+            wink_v_ratio(counter,2) = wink_var(counter,2) / wink_var(counter,1);
+            
+            %Calculating correlation
+            sigma_count = 0;
+            for i = wink_channel_set
+                for j = wink_channel_set
+                    if(i ~= j && j > i)
+                        sigma_count = sigma_count+1;
+                        C = corrcoef(sample(:,i), sample(:,j));
+                        wink_sigma(counter,sigma_count) = C(2,1);
+                    end
+                end
+            end
+            
+            if(live==1 && i==length(markers))
+                a.Stop;
+                delete(a);
+            end
+           
+            %Increment Counter
+            counter = counter + 1;
+            
+            %Update condition accordingly
+            if(live == 0)
+                condition = (SAMPLINGRATE/2)*(counter+1) + 64;
+            else 
+                condition = condition + 1;
+                %Time Waiting if Live
+                tfinish = toc;
+                if(tfinish<0.5)
+                    pause(0.5-tfinish);
+                    display(tfinish);
+                end
+            end
+        end
+        
+        %Data to be utilized for training 
+        data = [wink_v_ratio,wink_p_ratio,wink_peak];
+        
+        %Used for calculating the length of the row vectors in data
+        data_size = size(data);
+        data_param = data_size(2);
+        
+        %Training Parameters for the Right Eye
+        %Training Machines: Multinomial Logistic Regression Machine,
+        %Artificial Neural Network, Support Vector Machine, K Nearest
+        %Neighbour, & Linear Discriminant Analysis
+        w_B_r = mnrfit(data(:,1:data_param),wink_right);
+        w_net_r = feedforwardnet(5);
+        w_net_r.trainParam.showWindow = 0;
+        w_net_r = train(w_net_r,data(:,1:data_param)',wink_right); 
+        w_SVM_r = svmtrain(data(:,1:data_param)',wink_right,'autoscale','true','kernel_function','rbf');
+        w_KNN_r = ClassificationKNN.fit(data(:,1:data_param),wink_right,'NumNeighbors',20);
+        w_LDA_r = ClassificationDiscriminant.fit(data(:,1:data_param),wink_right);
+        
+        %For the Training Inception Purposes
+        for i=1:counter-1
+            wink_right_LR(i) = 2-1/(1+exp(-dot(w_B_r,[1 data(i,1:data_param)])));
+        end
+        wink_right_ANN = sim(w_net_r,data(:,1:data_param)');
+        wink_right_SVM = svmclassify(w_SVM_r,data(:,1:data_param));
+        wink_right_KNN = predict(w_KNN_r,data(:,1:data_param));
+        wink_right_LDA = predict(w_LDA_r,data(:,1:data_param));
+        w_learning_data_r = [wink_right_ANN' wink_right_LR' wink_right_SVM wink_right_KNN wink_right_LDA];
+        w_B_r_inception = mnrfit(w_learning_data_r,wink_right);
+         
+        
+        savefile = 'rightwinkparams.mat';
+        save(savefile,'w_B_r_inception','w_B_r','w_net_r','w_SVM_r','w_KNN_r','w_LDA_r');   
+        
+        params = guidata(source);
+        params.trainedrightwink = 1;
+        guidata(source,params);
+end
