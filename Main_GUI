@@ -3,35 +3,32 @@
 % plots the selected data in the axes. 
 
 % Create the gui, fist one is called f
-f = figure('Visible','off','Position',[400,200,500,350]);
+f = figure('Visible','off','Position',[400,200,500,350],'Name','EEG Brain Computer Interface GUI','NumberTitle','off');
 
 
 %% Components
 % Parameters
 params.run = 0;
-params.live = 1;
+params.live = 0;
 params.stop = 0;
 
 % Train Parameters
-params.trainedleftwink;
-params.trainedrightwink;
-params.trainedleftjaw;
-params.trainedrightjaw;
-params.trainedbothjaws;
+params.trainedleftwink = 0;
+params.trainedrightwink = 0;
+params.trainedleftjaw = 0;
+params.trainedrightjaw = 0;
+params.trainedbothjaws = 0;
 
 guidata(f,params);
 
-train_jaw    = uicontrol('Style','pushbutton','Callback',{@train_CB},...
+train_jaw    = uicontrol('Style','pushbutton','Callback',{@train_BOTHJAWS},...
              'String','Train Both Jaws','Position',[315,220,150,25]);
          
-train_left_jaw    = uicontrol('Style','pushbutton','Callback',{@train_CB},...
+train_left_jaw    = uicontrol('Style','pushbutton','Callback',{@train_LEFTJAW},...
              'String','Train Left Jaw','Position',[315,180,150,25]);
 
-train_right_jaw    = uicontrol('Style','pushbutton','Callback',{@train_CB},...
+train_right_jaw    = uicontrol('Style','pushbutton','Callback',{@train_RIGHTJAW},...
              'String','Train Right Jaw','Position',[315,140,150,25]);
-         
-train_mudesync = uicontrol('Style','pushbutton','Callback',{@train_MU},...
-             'String','Train MuDesynchronization','Position',[75,220,150,25]);
          
 train_leftwinking = uicontrol('Style','pushbutton','Callback',{@train_LEFTWINK},...
              'String','Train Left Winking','Position',[75,180,150,25]);
@@ -39,7 +36,7 @@ train_leftwinking = uicontrol('Style','pushbutton','Callback',{@train_LEFTWINK},
 train_rightwinking = uicontrol('Style','pushbutton','Callback',{@train_RIGHTWINK},...
              'String','Train Right Winking','Position',[75,140,150,25]);
 %Replace rename run_WINK to run_CB once it includes everything                                                  
-run  = uicontrol('Style','pushbutton','Callback',{@run_WINK},...
+run  = uicontrol('Style','pushbutton','Callback',{@run_CB},...
              'String','Run','Position',[315,100,150,25]);
          
 stop  = uicontrol('Style','pushbutton','Callback',{@stop_CB},...
