@@ -1,0 +1,127 @@
+function train_ALPHA(source, eventdata)
+    %Retrieve parameters from the GUI to determine what type of training
+    params = guidata(source);
+    live = params.live;
+    stop = 0;
+    params.stop = 0;
+    guidata(source,params);
+    
+    %Display formatting
+    f_train = figure('Visible','off',...
+                'Color',[0 0 1],...
+                'NumberTitle','off','Name','Training!',...
+                'Position',[200,200,500,300]);
+    ha = axes('units','normalized', ...
+            'position',[0 0 1 1]);
+    uistack(ha,'bottom');
+    I=imread('MessageDisplay.jpg');
+    hi = imagesc(I);
+    colormap gray;
+    set(ha,'handlevisibility','off', ...
+                'visible','off');
+    text_train = uicontrol(f_train,'Style','text',...
+                    'FontSize',[25],...
+                    'BackgroundColor',[0 0 1],...
+                    'ForegroundColor',[1 1 1],...
+                    'Visible','off',...
+                    'Position',[50 70 400 120]);
+    %Constants
+    SAMPLINGRATE = 128;
+    CHANNELS = 14;
+
+    %Channels of Interest
+    alpha_channel_set = [7 8];
+    
+    %Useful Variables
+    counter = 1;
+    closed = 0;
+
+    
+    set(f_train,'Visible','on');
+    set(text_train,'Visible','on','String','Training in Progress');
+    pause(0.1);
+        
+    %Load Training Data
+    [hdr, record1] = edfread('RyanAlphaMarch8-2.edf');
+    [hdr, record2] = edfread('RyanAlphaMarch8.edf');
+    [hdr, record3] = edfread('arturoalphaMarch8-2.edf');
+    [hdr, record4] = edfread('arturoalphaMarch8.edf');
+    record = [record1 record2 record3 record4];
+    markers = record(36,:);
+
+    %Determines if eyes are open or closed
+    %Check if O1 (channel 7) 9 Hz power is greater than a threshold
+    %Code to convert marker into open/closed
+    
+    while((SAMPLINGRATE/2)*(counter) + 64 <=length(record))
+        sample = record(3:16,(((SAMPLINGRATE/2)*(counter-1))+1:(((SAMPLINGRATE/2)*(counter))+64)))';
+        marker = max(record(36,(SAMPLINGRATE/2*(counter-1)+1:(SAMPLINGRATE/2*(counter) + 64))));
+        if (marker==60)
+            closed = 1;
+        elseif (marker==61)
+            closed = 0;
+        end
+        if(closed == 1)
+            eyes_closed(counter) = 2;
+        elseif (closed == 0)
+            eyes_closed(counter) = 1;
+        end
+
+        k = 0;
+        for j = alpha_channel_set
+                k = k+1;
+                F(k,:) = fft(sample(:,j), 128);
+        end
+        stop
+        sum_alphapower(counter) = 0;
+        for j = 1:2
+            alphapower(counter,j) = 0;
+            %Average across 9-13 Hz
+            for i = 9:13
+                alphapower(counter,j) = alphapower(counter,j) + abs(F(j,i))^2;
+            end
+            sum_alphapower(counter) = sum_alphapower(counter) + alphapower(counter,j);
+        end
+        
+        %Check if stop program requested training to cease
+        params = guidata(source);
+        stop = params.stop;
+        if(stop == 1)
+            break;
+        end
+        
+        counter = counter + 1;
+    end
+    
+    %Check if training was interrupted
+    if(stop==0)
+        %Training Variables
+        e_data = [alphapower];
+        e_data_size = size(e_data);
+        e_data_param = e_data_size(2);
+
+        %Training Parameters
+        eyes_SVM = svmtrain(e_data',eyes_closed,'autoscale','true','kernel_function','rbf');
+        eyes_KNN = ClassificationKNN.fit(e_data(:,1:e_data_param),eyes_closed,'NumNeighbors',20);
+        eyes_LDA = ClassificationDiscriminant.fit(e_data(:,1:e_data_param),eyes_closed);
+
+        savefile = 'eyesparams.mat';
+        save(savefile,'eyes_SVM','eyes_KNN','eyes_LDA');   
+
+        params = guidata(source);
+        params.trainedeyesstate= 1;
+        guidata(source,params);
+        
+        set(f_train,'Visible','on');
+        set(text_train,'Visible','on','ForegroundColor',[0 1 0],'String','Training Successful');
+        pause(2);
+        set(f_train,'Visible','off');
+
+    else
+        set(f_train,'Visible','on');
+        set(text_train,'Visible','on','ForegroundColor',[1 0 0],'String','Training Unsuccessful');
+        pause(2);
+        set(f_train,'Visible','off');
+    end
+end
+
