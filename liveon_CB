@@ -1,0 +1,7 @@
+function liveon_CB(source,eventdata)
+    display('Live Training: Off');
+    %Set to live training
+    params = guidata(source);
+    params.live = 1;
+    guidata(source,params);
+end
