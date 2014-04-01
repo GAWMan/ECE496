@@ -1,45 +1,62 @@
-% Select a data set from the pop-up menu, then
-% click one of the plot-type push buttons. Clicking the button
-% plots the selected data in the axes. 
+%Create GUI Window
+f = figure('Visible','off','Position',[200,100,800,600],'Name','EEG Brain Computer Interface GUI','NumberTitle','off');
+ha = axes('units','normalized', ...
+            'position',[0 0 1 1]);
+uistack(ha,'bottom');
+I=imread('NEWGUIBackground.jpg');
+hi = imagesc(I);
+colormap gray;
+set(ha,'handlevisibility','off', ...
+            'visible','off');
 
-% Create the gui, fist one is called f
-f = figure('Visible','off','Position',[400,200,500,350],'Name','EEG Brain Computer Interface GUI','NumberTitle','off');
-
-
-%% Components
 % Parameters
 params.run = 0;
 params.live = 0;
 params.stop = 0;
 
-% Train Parameters
+% Training Parameters
 params.trainedleftwink = 0;
 params.trainedrightwink = 0;
 params.trainedleftjaw = 0;
 params.trainedrightjaw = 0;
 params.trainedbothjaws = 0;
+params.trainedeyesstate = 0;
 
 guidata(f,params);
 
+% X and Y Coordinate of Initial Button
+left = 625;
+top = 490;
+
+%Creates Buttons on the GUI with certain that call functions when clicked
 train_jaw    = uicontrol('Style','pushbutton','Callback',{@train_BOTHJAWS},...
-             'String','Train Both Jaws','Position',[315,220,150,25]);
+             'String','Train Both Jaws','Position',[left,top,150,25]);
          
 train_left_jaw    = uicontrol('Style','pushbutton','Callback',{@train_LEFTJAW},...
-             'String','Train Left Jaw','Position',[315,180,150,25]);
+             'String','Train Left Jaw','Position',[left,top-50,150,25]);
 
 train_right_jaw    = uicontrol('Style','pushbutton','Callback',{@train_RIGHTJAW},...
-             'String','Train Right Jaw','Position',[315,140,150,25]);
+             'String','Train Right Jaw','Position',[left,top-100,150,25]);
          
 train_leftwinking = uicontrol('Style','pushbutton','Callback',{@train_LEFTWINK},...
-             'String','Train Left Winking','Position',[75,180,150,25]);
+             'String','Train Left Winking','Position',[left,top-150,150,25]);
          
 train_rightwinking = uicontrol('Style','pushbutton','Callback',{@train_RIGHTWINK},...
-             'String','Train Right Winking','Position',[75,140,150,25]);
-%Replace rename run_WINK to run_CB once it includes everything                                                  
+             'String','Train Right Winking','Position',[left,top-200,150,25]);
+
+train_alpha  = uicontrol('Style','pushbutton','Callback',{@train_ALPHA},...
+             'String','Alpha Wave Training','Position',[left,top-250,150,25]);
+         
+liveon  = uicontrol('Style','pushbutton','Callback',{@liveon_CB},...
+             'String','Turn on Live Training','Position',[left,top-300,150,25]);
+         
+liveoff  = uicontrol('Style','pushbutton','Callback',{@liveoff_CB},...
+             'String','Turn off Live Training','Position',[left,top-350,150,25]);
+
 run  = uicontrol('Style','pushbutton','Callback',{@run_CB},...
-             'String','Run','Position',[315,100,150,25]);
+             'String','Run','Position',[left,top-400,150,25]);
          
 stop  = uicontrol('Style','pushbutton','Callback',{@stop_CB},...
-             'String','Stop','Position',[315,60,150,25]);
-         
+             'String','Stop','Position',[left,top-450,150,25]);
+               
 set(f,'Visible','on')
