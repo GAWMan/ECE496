@@ -1,6 +1,9 @@
 function stop_CB(source,eventdata)
-    %Stop the operation of the run_CB if activated
+    display('Stop: Now concluding run operating');
+    
+    %Stop the operation of the run_CB or train_CB if activated
     params = guidata(source);
-    params.run = 0;
+    params.run = 0; %For Running Mode%
+    params.stop = 1; %For Training Mode%
     guidata(source,params);
 end
