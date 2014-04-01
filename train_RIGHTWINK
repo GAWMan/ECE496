@@ -3,36 +3,55 @@ function train_RIGHTWINK(source, eventdata)
     %Retrieve parameters from the GUI to determine what type of training
     params = guidata(source);
     live = params.live;
+    stop = 0;
+    params.stop = 0;
+    guidata(source,params);
     
     %Display formatting
     f_train = figure('Visible','off',...
                 'Color',[0 0 1],...
                 'NumberTitle','off','Name','Training!',...
                 'Position',[200,200,500,300]);
+    ha = axes('units','normalized', ...
+            'position',[0 0 1 1]);
+    uistack(ha,'bottom');
+    I=imread('MessageDisplay.jpg');
+    hi = imagesc(I);
+    colormap gray;
+    set(ha,'handlevisibility','off', ...
+                'visible','off');
     text_train = uicontrol(f_train,'Style','text',...
                     'FontSize',[25],...
                     'BackgroundColor',[0 0 1],...
+                    'ForegroundColor',[1 1 1],...
                     'Visible','off',...
-                    'Position',[50 100 400 130])
+                    'Position',[50 70 400 120]);
     %Constants
     SAMPLINGRATE = 128;
     CHANNELS = 14;
 
-    %Channels of Interest = F7 & F8
+    %Channels of Interest = F7 & F8 and other parameters
     wink_channel_set = [2,13];
     counter = 1;
     limit = 0;
     tstart = 0;
     tfinish = 0;
+    train_count = 4;
     
     %Decide if live to determine how data is taken
     if(live == 0)
+        
+        set(f_train,'Visible','on');
+        set(text_train,'Visible','on','String','Training in Progress');
+        pause(0.1);
+        
         %Load Training Data
         [hdr, record1] = edfread('RyanWink-2Feb7-07.02.14.15.45.22.edf');
         [hdr, record2] = edfread('RyanWink4Feb7.edf');
         [hdr, record3] = edfread('WinkFeb9.edf');
         [hdr, record4] = edfread('Wink2Feb9.edf');
-        record = [record1];
+        [hdr, record5] = edfread('AllMar29.edf');
+        record = [record5];
         markers = record(36,:);
     else
         %Get Training Data Live
@@ -41,8 +60,13 @@ function train_RIGHTWINK(source, eventdata)
         
         set(f_train,'Visible','on');
         set(text_train,'Visible','off');
-        markers = [0,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0,50,50,0,0,0,0];
+        
+        m_l = 5;
+        for i = 1:10
+            markers(m_l*(i-1)+1:m_l*i) = [0,0,0,0,50];
+        end
     end 
+    
     if(live == 0)
         limit = length(record); 
         condition = (SAMPLINGRATE/2)*(counter) + 64;
@@ -50,22 +74,25 @@ function train_RIGHTWINK(source, eventdata)
         limit = length(markers);
         condition = 1;
     end
+    
         while(condition <= limit)
-            tic;
             if (live==0)
+                set(f_train,'Visible','on');
+                set(text_train,'Visible','on','String','Training in Progress');
                 marker = max(markers(1,(((SAMPLINGRATE/2)*(counter-1))+1:(((SAMPLINGRATE/2)*(counter))+64))));
                 sample = record(3:16,(((SAMPLINGRATE/2)*(counter-1))+1:(((SAMPLINGRATE/2)*(counter))+64)))';
             else
-                if (markers(counter) == 40)
-                set(text_train,'Visible','on','String','Please wink with your left eye now');
-                elseif (markers(counter) == 50)
+                if (markers(counter) == 50)
+                    train_count = 4;
                     set(text_train,'Visible','on','String','Please wink with your right eye now');
                 else 
-                    set(text_train,'Visible','on','String','Please try to keep your eyes open');
+                    set(text_train,'Visible','on','String',strcat('Please try to keep still and relaxed: [' , num2str(train_count),']'));
+                    train_count = train_count - 1;
                 end
+                pause(1-tfinish);
+                tic;
                 marker = markers(counter);
-                record(1:128,1:14)= a.data(1:128,4:17);
-                sample = record; 
+                sample(1:128,1:14)= a.data(1:128,4:17);
             end
             if (marker == 40)
                 wink_left(counter) = 2;
@@ -129,12 +156,7 @@ function train_RIGHTWINK(source, eventdata)
                     end
                 end
             end
-            
-            if(live==1 && i==length(markers))
-                a.Stop;
-                delete(a);
-            end
-           
+
             %Increment Counter
             counter = counter + 1;
             
@@ -143,50 +165,74 @@ function train_RIGHTWINK(source, eventdata)
                 condition = (SAMPLINGRATE/2)*(counter+1) + 64;
             else 
                 condition = condition + 1;
-                %Time Waiting if Live
+                %Processing Time if Live
                 tfinish = toc;
-                if(tfinish<0.5)
-                    pause(0.5-tfinish);
-                    display(tfinish);
-                end
+            end
+            
+            %Check if stop program requested training to cease
+            params = guidata(source);
+            stop = params.stop;
+            if(stop == 1)
+                break;
             end
         end
         
-        %Data to be utilized for training 
-        data = [wink_v_ratio,wink_p_ratio,wink_peak];
-        
-        %Used for calculating the length of the row vectors in data
-        data_size = size(data);
-        data_param = data_size(2);
-        
-        %Training Parameters for the Right Eye
-        %Training Machines: Multinomial Logistic Regression Machine,
-        %Artificial Neural Network, Support Vector Machine, K Nearest
-        %Neighbour, & Linear Discriminant Analysis
-        w_B_r = mnrfit(data(:,1:data_param),wink_right);
-        w_net_r = feedforwardnet(5);
-        w_net_r.trainParam.showWindow = 0;
-        w_net_r = train(w_net_r,data(:,1:data_param)',wink_right); 
-        w_SVM_r = svmtrain(data(:,1:data_param)',wink_right,'autoscale','true','kernel_function','rbf');
-        w_KNN_r = ClassificationKNN.fit(data(:,1:data_param),wink_right,'NumNeighbors',20);
-        w_LDA_r = ClassificationDiscriminant.fit(data(:,1:data_param),wink_right);
-        
-        %For the Training Inception Purposes
-        for i=1:counter-1
-            wink_right_LR(i) = 2-1/(1+exp(-dot(w_B_r,[1 data(i,1:data_param)])));
+        %Shut down hardware and close training window
+        if(live==1)
+            a.Stop;
+            delete(a);
+            set(f_train,'Visible','off');
         end
-        wink_right_ANN = sim(w_net_r,data(:,1:data_param)');
-        wink_right_SVM = svmclassify(w_SVM_r,data(:,1:data_param));
-        wink_right_KNN = predict(w_KNN_r,data(:,1:data_param));
-        wink_right_LDA = predict(w_LDA_r,data(:,1:data_param));
-        w_learning_data_r = [wink_right_ANN' wink_right_LR' wink_right_SVM wink_right_KNN wink_right_LDA];
-        w_B_r_inception = mnrfit(w_learning_data_r,wink_right);
-         
         
-        savefile = 'rightwinkparams.mat';
-        save(savefile,'w_B_r_inception','w_B_r','w_net_r','w_SVM_r','w_KNN_r','w_LDA_r');   
+        %Check if training was interrupted
+        if(stop==0)
+            %Data to be utilized for training 
+            data = [wink_v_ratio,wink_p_ratio,wink_peak];
+
+            %Used for calculating the length of the row vectors in data
+            data_size = size(data);
+            data_param = data_size(2);
+
+            %Training Parameters for the Right Eye
+            %Training Machines: Multinomial Logistic Regression Machine,
+            %Artificial Neural Network, Support Vector Machine, K Nearest
+            %Neighbour, & Linear Discriminant Analysis
+            w_B_r = mnrfit(data(:,1:data_param),wink_right);
+            w_net_r = feedforwardnet(5);
+            w_net_r.trainParam.showWindow = 0;
+            w_net_r = train(w_net_r,data(:,1:data_param)',wink_right); 
+            w_SVM_r = svmtrain(data(:,1:data_param)',wink_right,'autoscale','true','kernel_function','rbf');
+            w_KNN_r = ClassificationKNN.fit(data(:,1:data_param),wink_right,'NumNeighbors',20);
+            w_LDA_r = ClassificationDiscriminant.fit(data(:,1:data_param),wink_right);
+
+            %For the Training Inception Purposes
+            for i=1:counter-1
+                wink_right_LR(i) = 2-1/(1+exp(-dot(w_B_r,[1 data(i,1:data_param)])));
+            end
+            wink_right_ANN = sim(w_net_r,data(:,1:data_param)');
+            wink_right_SVM = svmclassify(w_SVM_r,data(:,1:data_param));
+            wink_right_KNN = predict(w_KNN_r,data(:,1:data_param));
+            wink_right_LDA = predict(w_LDA_r,data(:,1:data_param));
+            w_learning_data_r = [wink_right_ANN' wink_right_LR' wink_right_SVM wink_right_KNN wink_right_LDA];
+            w_B_r_inception = mnrfit(w_learning_data_r,wink_right);
+
+
+            savefile = 'rightwinkparams.mat';
+            save(savefile,'w_B_r_inception','w_B_r','w_net_r','w_SVM_r','w_KNN_r','w_LDA_r');   
+
+            params = guidata(source);
+            params.trainedrightwink = 1;
+            guidata(source,params);
         
-        params = guidata(source);
-        params.trainedrightwink = 1;
-        guidata(source,params);
+        	set(f_train,'Visible','on');
+            set(text_train,'Visible','on','ForegroundColor',[0 1 0],'String','Training Successful');
+            pause(2);
+            set(f_train,'Visible','off');
+            
+        else
+            set(f_train,'Visible','on');
+            set(text_train,'Visible','on','ForegroundColor',[1 0 0],'String','Training Unsuccessful');
+            pause(2);
+            set(f_train,'Visible','off');
+        end
 end
