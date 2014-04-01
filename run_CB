@@ -7,6 +7,8 @@ function run_CB(source, eventdata)
     trainedleftjaw = params.trainedleftjaw;
     trainedrightjaw = params.trainedrightjaw;
     trainedbothjaws = params.trainedbothjaws;
+    trainedeyesstate = params.trainedeyesstate;
+    
     params.run = 1;
     run = 1;
     guidata(source,params);
@@ -17,16 +19,25 @@ function run_CB(source, eventdata)
             'NumberTitle','off','Name','Running!',...
             'Position',[200,200,500,300]);
         
+    ha = axes('units','normalized', ...
+            'position',[0 0 1 1]);
+    uistack(ha,'bottom');
+    I=imread('RunDisplay.jpg');
+    hi = imagesc(I);
+    colormap gray;
+    set(ha,'handlevisibility','off', ...
+                'visible','off');
     text_run = uicontrol(f_run,'Style','text',...
-                'FontSize',[20],...
-                'BackgroundColor',[0 0 1],...
-                'Visible','off',...
-                'Position',[50 100 400 130]);
+                    'FontSize',[25],...
+                    'BackgroundColor',[0 0 1],...
+                    'ForegroundColor',[1 1 1],...
+                    'Visible','off',...
+                    'Position',[50 70 400 120]);
      
     %Check if atleast one the parameters are trained so atleast one control
     %signal can be utilized
-    if(trainedleftwink == 0 && trainedrightwink == 0 && trainedleftjaw == 0 && trainedrightjaw == 0 && trainedbothjaws == 0)
-        set(f_run,'Visible','on');
+    set(f_run,'Visible','on');
+    if(trainedleftwink == 0 && trainedrightwink == 0 && trainedleftjaw == 0 && trainedrightjaw == 0 && trainedbothjaws == 0 && trainedeyesstate == 0)
         set(text_run,'Visible','on','String','Please run one of the training programs first');
         pause(2.5);
         set(f_run,'Visible','off');
@@ -49,18 +60,53 @@ function run_CB(source, eventdata)
     if(trainedbothjaws ==1)
         load('bothjawparams.mat');
     end
+    if(trainedeyesstate ==1)
+        load('eyesparams.mat')
+    end
     
     %Constants
     SAMPLINGRATE = 128;
     CHANNELS = 14;
     wink_channel_set = [2,13];
     jaw_channel_set = [1,2,3,4,11,12,13,14];
+    alpha_channel_set = [7 8];
     counter = 1;
     
     %Hardware Constants
     a = EmotivEEG;
     a.Run;
+    m = manipulator('ax12');
+    
+    speed = 20;   
+    mode = 'degrees';
+    angles = [0,133,0,0];    
+    settorque(m,1);
+    setspeed(m, 128);
+    setangles(m,angles,mode);
+    setgripper(m, 'open');
+    pause(3);
+    
+    %Operation Purposes
+    leftbool = 0;
+    rightbool = 0;
+    blockcounter = 0;
+    eyecount = 0;
+    
+    %For Training & Decision Purposes   
+    wink_guess_ensemble = 0;
+    jaw_guess_ensemble = 0;
+    program_guess(1:6) = 0; 
+    jaw_target_meta(1,1:3) = 0;
+    wink_target_meta(1,1:2) = 0;
+    
+    %Debugging Purposes
+    p = 0;
+    
     while(run)
+        %Robotic Arm Speed
+        speed = 20;
+        setspeed(m,speed);
+        
         %Retrieve most recent sample
         sample(1:128,1:14) = a.data(1:128,4:17);
         
@@ -155,37 +201,37 @@ function run_CB(source, eventdata)
                 wink_right_LDA = predict(w_LDA_r,data(:,1:data_param));
                 %Predictions for Training Networks seperated for each Eye 
                 w_learning_data_r = [wink_right_ANN' wink_right_LR' wink_right_SVM wink_right_KNN wink_right_LDA];
-                wink_right_ensemble = 2-1/(1+exp(-dot(w_B_l_inception,[1 w_learning_data_r(1,:)])));
+                wink_right_ensemble = 2-1/(1+exp(-dot(w_B_r_inception,[1 w_learning_data_r(1,:)])));
             end
             %A counter that keeps track of how many Training Machines out
             %of SVM, KNN, and LDA believe it is correct
             w_council(1) = 0;
             w_council(2) = 0;
-                %Left Eye
-                if(trainedleftwink == 1)
-                    if(wink_left_SVM == 2)
-                        w_council(1) = w_council(1) +1;
-                    end
-                    if(wink_left_KNN == 2)
-                        w_council(1) = w_council(1) +1;
-                    end
-                    if(wink_left_LDA == 2)
-                        w_council(1) = w_council(1) +1;
-                    end
+            %Left Eye
+            if(trainedleftwink == 1)
+                if(wink_left_SVM == 2)
+                    w_council(1) = w_council(1) +1;
                 end
-                %Right Eye
-                if(trainedrightwink == 1)
-                    if(wink_right_SVM == 2)
-                        w_council(2) = w_council(2) +1;
-                    end
-                    if(wink_right_KNN == 2)
-                        w_council(2) = w_council(2) +1;
-                    end
-                    if(wink_right_LDA == 2)
-                        w_council(2) = w_council(2) +1;
-                    end
+                if(wink_left_KNN == 2)
+                    w_council(1) = w_council(1) +1;
                 end
-
+                if(wink_left_LDA == 2)
+                    w_council(1) = w_council(1) +1;
+                end
+            end
+            %Right Eye
+            if(trainedrightwink == 1)
+                if(wink_right_SVM == 2)
+                    w_council(2) = w_council(2) +1;
+                end
+                if(wink_right_KNN == 2)
+                    w_council(2) = w_council(2) +1;
+                end
+                if(wink_right_LDA == 2)
+                    w_council(2) = w_council(2) +1;
+                end
+            end
+            
             %Final Prediction
             if(trainedleftwink == 1 && trainedrightwink == 0)
                 wink_right_ensemble = 0;
@@ -201,8 +247,9 @@ function run_CB(source, eventdata)
             
             %Q is channels
             for i = q
+                program_guess(i) = wink_target_meta(1,i) + w_council(i);
                 if(wink_target_meta(1,i) > 1.2 || w_council(i) >= 1)
-                     wink_guess_ensemble = i;
+                    wink_guess_ensemble = i;
                 end
             end
         %End Wink Prediction%
@@ -210,7 +257,8 @@ function run_CB(source, eventdata)
         
         if(trainedleftjaw == 1 || trainedrightjaw == 1 || trainedbothjaws == 1)
         %Begin Jaw Analysis
-        %Calculate Variance, Power, Ratio of Power
+            %Calculate Variance, Power, Ratio of Power
+            jaw_power_sum = 0;
             k = 0;
             for j = jaw_channel_set;
                 %use k instead of loop_set, goes from 1-8
@@ -233,6 +281,9 @@ function run_CB(source, eventdata)
             end
 
             %Calculating ratios of power
+            left_jaw_power = 0;
+            right_jaw_power =0;
+            jaw_var_sum(1:2) =0;
             for j = 1:4
                 left_jaw_power = left_jaw_power + jaw_power(j);
                 right_jaw_power = right_jaw_power + jaw_power(j+4);
@@ -256,7 +307,7 @@ function run_CB(source, eventdata)
                 end
             end  
         %End Jaw Analysis
-        end
+        
         
         %Begin Jaw Prediction%
             data = [jaw_var_ratio,jaw_sigma, jaw_power_sum',left_jaw_power', right_jaw_power', jaw_p_ratio];
@@ -264,7 +315,7 @@ function run_CB(source, eventdata)
             %Used for calculating the length of the row vectors in data
             data_size = size(data);
             data_param = data_size(2);
-            
+
             %Simulate for Left Jaw
             if(trainedleftjaw == 1)
                 %Simulate Logistic Regression Prediction
@@ -318,43 +369,43 @@ function run_CB(source, eventdata)
             
             %A counter that keeps track of how many Training Machines out
             %of SVM, KNN, and LDA believe it is correct
-                j_council(1:3,1:LOOP_NUM) = 0;
-                %Left Jaw
-                if(trainedleftjaw == 1)
-                    if(jaw_left_SVM == 2)
-                        j_council(1) = j_council(1) +1;
-                    end
-                    if(jaw_left_KNN == 2)
-                        j_council(1) = j_council(1) +1;
-                    end
-                    if(jaw_left_LDA == 2)
-                        j_council(1) = j_council(1) +1;
-                    end
+            j_council(1:3) = 0;
+            %Left Jaw
+            if(trainedleftjaw == 1)
+                if(jaw_left_SVM == 2)
+                    j_council(1) = j_council(1) +1;
                 end
-                %Right Jaw
-                if(trainedrightjaw == 1)
-                    if(jaw_right_SVM == 2)
-                        j_council(2) = j_council(2) +1;
-                    end
-                    if(jaw_right_KNN == 2)
-                        j_council(2) = j_council(2) +1;
-                    end
-                    if(jaw_right_LDA == 2)
-                        j_council(2) = j_council(2) +1;
-                    end
+                if(jaw_left_KNN == 2)
+                    j_council(1) = j_council(1) +1;
                 end
-                %Both Jaw
-                if(trainedbothjaws == 1)
-                    if(jaw_both_SVM == 2)
-                        j_council(3) = j_council(3) +1;
-                    end
-                    if(jaw_both_KNN == 2)
-                        j_council(3) = j_council(3) +1;
-                    end
-                    if(jaw_both_LDA == 2)
-                        j_council(3) = j_council(3) +1;
-                    end
+                if(jaw_left_LDA == 2)
+                    j_council(1) = j_council(1) +1;
                 end
+            end
+            %Right Jaw
+            if(trainedrightjaw == 1)
+                if(jaw_right_SVM == 2)
+                    j_council(2) = j_council(2) +1;
+                end
+                if(jaw_right_KNN == 2)
+                    j_council(2) = j_council(2) +1;
+                end
+                if(jaw_right_LDA == 2)
+                    j_council(2) = j_council(2) +1;
+                end
+            end
+            %Both Jaw
+            if(trainedbothjaws == 1)
+                if(jaw_both_SVM == 2)
+                    j_council(3) = j_council(3) +1;
+                end
+                if(jaw_both_KNN == 2)
+                    j_council(3) = j_council(3) +1;
+                end
+                if(jaw_both_LDA == 2)
+                    j_council(3) = j_council(3) +1;
+                end
+            end
 
             %Final Prediction
             if(trainedleftjaw == 1 && trainedrightjaw == 0 && trainedbothjaws == 0)
@@ -381,26 +432,148 @@ function run_CB(source, eventdata)
             else
                 q = [1,2,3];
             end
+            
             jaw_target_meta = [jaw_left_ensemble' jaw_right_ensemble' jaw_both_ensemble'];
             jaw_guess_ensemble = 0;
-            
+
             %Q is channels
             for i = q
+                program_guess(i+2) = jaw_target_meta(1,i) + j_council(i);
+                    if(i == 3)
+                        %re-weight both jaws so it triggers more often
+                        program_guess(i+2) = program_guess(i+2) +2;
+                    end
                 if(jaw_target_meta(1,i) > 1.2 || j_council(i) >= 1)
-                     jaw_guess_ensemble = i;
+                    jaw_guess_ensemble = i;
                 end
             end
+        end
         %End Jaw Prediction%
         
-        %Control movement of Robotic Arm
-        if(wink_guess_ensemble ~= 0)
-            if(wink_guess_ensemble == 1)
-                display('You committed a left wink');
-            elseif(wink_guess_ensemble == 2)
-                display('You committed a right wink');
+        %Eyes State Analysis%
+        if(trainedeyesstate ==1)
+            k = 0;
+            for j = alpha_channel_set
+                    k = k+1;
+                    F(k,:) = fft(sample(:,j));
             end
+
+            sum_alphapower = 0;
+            for j = 1:2
+                alphapower(j) = 0;
+                %Average across 9-13 Hz
+                for i = 9:13
+                    alphapower(j) = alphapower(j) + abs(F(j,i))^2;
+                end
+                sum_alphapower = sum_alphapower + alphapower(j);
+            end
+        %Eyes State Analysis
+        
+        %Begin Eyes State Prediction
+            e_data = [alphapower];
+            eyes_KNN_out = predict(eyes_KNN,e_data);
+            eyes_LDA_out = predict(eyes_LDA,e_data);
+            eyes_SVM_out = svmclassify(eyes_SVM,e_data);
+            e_council = (eyes_KNN_out + eyes_LDA_out + eyes_SVM_out -3);
+            program_guess(6) = e_council;
+        %End Eyes State Prediction
         end
         
+        %Some Form of Democracy%
+       [p_max, p_index] = max(program_guess);    
+       
+        %Debugging Purposes, not part of run program
+       % p = p+1;
+       % storage(p,1:8) = [program_guess wink_guess_ensemble jaw_guess_ensemble];
+        
+        %Final Prediction
+        if(p_max > 2.2)
+            program_output = p_index;
+        else
+            program_output = 0;
+        end
+        
+        %Robotic Arm Control%
+        if (blockcounter > 0)
+            eyecount = 0;
+            blockcounter = blockcounter - 1;
+        elseif(program_output == 1)
+            eyecount = 0;
+            set(text_run,'Visible','on','String','User is winking with their left eye');
+            blockcounter = 0;
+            if(leftbool == 0)
+                speed = 512;
+                setspeed(m,speed);
+                setgripper(m, 'closed');
+                leftbool = 1;
+            else
+                speed = 512;
+                setspeed(m,speed);
+                setgripper(m, 'open');
+                leftbool = 0;
+            end
+            pause(2);
+        elseif(program_output == 2)
+            eyecount = 0;
+            set(text_run,'Visible','on','String','User is winking with their right eye');
+            blockcounter = 0;
+            if(rightbool == 0)
+                speed = 128;
+                setspeed(m,speed);
+                angles(3) = 180;
+                setangles(m, angles, mode);
+                rightbool = 1;
+            else
+                speed = 128;
+                setspeed(m,speed);
+                angles(3)= 0;
+                setangles(m,angles, mode);
+                rightbool = 0;
+            end
+            pause(2);
+        elseif(program_output == 3)
+            eyecount = 0;
+            set(text_run,'Visible','on','String','User is clenching their left jaw');
+            angles(2) = angles(2) + 5;
+            setangles(m, angles, mode);
+        elseif(program_output == 4)
+            eyecount = 0;
+            set(text_run,'Visible','on','String','User is clenching their right jaw');
+            angles(2) = angles(2) - 5;
+            setangles(m, angles, mode);
+        elseif(program_output == 5)
+            eyecount = 0;
+            set(text_run,'Visible','on','String','User is clenching both sides of their jaw');
+        elseif(program_guess(6)>= 3 || program_output == 6 )
+            eyecount = eyecount+1;
+            set(text_run,'Visible','on','String',strcat('User is not carrying out an action Eyecount: [',num2str(eyecount),']'));
+            if (eyecount >= 5)
+                set(text_run,'Visible','on','String','User has their eyes closed');
+                %Reset
+                if(rightbool == 1)
+                    rightbool = 0;
+                end
+                
+                if(leftbool == 1)
+                    leftbool = 0;
+                end
+                
+                angles = [0,133,0,0];
+                settorque(m,1);
+                setspeed(m, 128);
+                setangles(m,angles,mode);
+                setgripper(m, 'open');
+            end    
+        else
+            eyecount = 0;
+            set(text_run,'Visible','on','String','User is not carrying out an action');
+        end     
+        
+        %Reset some parameters
+        program_guess(1:6) = 0;
+        wink_guess_ensemble = 0;
+        jaw_guess_ensemble = 0;
+                  
         %Give time to EEG Emotiv Headset to collect new values, do not
         %want to load values all the time or else leads to the detection of 
         %one movement more than once. Also, gives a chance for the
@@ -412,6 +585,20 @@ function run_CB(source, eventdata)
         run = params.run;
         guidata(source,params);
     end
+    
+    set(f_run,'Visible','on');
+    set(text_run,'Visible','on','String','Terminated operation of prototype');
+    pause(2);
+    set(f_run,'Visible','off');
+    
+    %Debugging Purposes, not part of run program
+    % savefile = 'meta_data.mat';
+    % save(savefile, 'storage');
+    
+    
+    %Hardware Disconnections%
+    close(m);
     a.Stop;
     delete(a);
+    
 end
